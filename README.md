@@ -9,10 +9,12 @@ SyncBoard is a real-time collaborative whiteboard application built with modern 
 - **Offline Support**: Local persistence using IndexedDB, allowing you to work offline and sync when back online.
 - **Interactive Canvas**: High-performance drawing canvas built with [Fabric.js](http://fabricjs.com/).
 - **Modern Tech Stack**: React, TypeScript, and Vite for a fast and robust development experience.
+- **Collaborative Tools**: Floating toolbar with Rectangle, Circle, Text, Sticky Notes, and Pencil tools.
+- **Undo/Redo**: Full history support for your collaborative sessions.
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React, TypeScript, Fabric.js
+- **Frontend**: React, TypeScript, Fabric.js, Lucide React
 - **Synchronization**: Yjs, y-websocket, y-indexeddb
 - **Backend**: Node.js, WebSockets (`ws`)
 - **Build Tool**: Vite
@@ -56,10 +58,12 @@ Open your browser at `http://localhost:5173`.
 
 ## 📖 Usage
 
-- **Add Shapes**: Use the buttons at the top to add Rectangles, Circles, or Text.
+- **Add Shapes**: Use the floating toolbar at the top to add Rectangles, Circles, Text, or Sticky Notes.
+- **Pencil Tool**: Draw freehand directly on the canvas.
 - **Move/Resize**: Click and drag any object on the canvas to move it. Use the handles to resize.
-- **Edit Text**: Double-click on text elements to edit their content.
-- **Collaboration**: Open the application in multiple browser tabs or windows to see real-time syncing in action.
+- **Edit Text**: Double-click on text elements or sticky notes to edit their content.
+- **Delete**: Select an object and press `Delete`/`Backspace` or use the trash icon in the toolbar.
+- **Undo/Redo**: Use the undo/redo buttons in the toolbar or standard keyboard shortcuts (`Ctrl+Z` / `Ctrl+Y`).
 - **Persistence**: Your work is automatically saved to your browser's IndexedDB.
 
 ## 📜 License
