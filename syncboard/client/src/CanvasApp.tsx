@@ -13,6 +13,18 @@ export type ElementData = {
   style: { fill: string; stroke?: string };
 };
 
+interface FabricObjectWithId extends fabric.Object {
+  id?: string;
+  scaleX: number;
+  scaleY: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  radius?: number;
+  text?: string;
+}
+
 export const CanvasApp = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState('connecting');
@@ -40,16 +52,16 @@ export const CanvasApp = () => {
     fabricRef.current = fabricCanvas;
 
     const findObjectById = (id: string) => 
-      fabricCanvas.getObjects().find((obj: any) => obj.id === id);
+      fabricCanvas.getObjects().find((obj: fabric.Object) => (obj as FabricObjectWithId).id === id) as FabricObjectWithId | undefined;
 
     const upsertFabricObject = (key: string, data: ElementData) => {
-      const existing = findObjectById(key) as any;
+      const existing = findObjectById(key);
       if (existing) {
         existing.set({
           left: data.position.x,
           top: data.position.y,
-          width: data.size.width / existing.scaleX, 
-          height: data.size.height / existing.scaleY,
+          width: data.size.width / (existing.scaleX || 1),
+          height: data.size.height / (existing.scaleY || 1),
           radius: data.size.radius, 
           text: data.content,
           fill: data.style.fill
@@ -78,7 +90,7 @@ export const CanvasApp = () => {
           });
         }
         if (obj) {
-          (obj as any).id = key;
+          (obj as FabricObjectWithId).id = key;
           fabricCanvas.add(obj);
         }
       }
@@ -114,18 +126,18 @@ export const CanvasApp = () => {
     // Sync Fabric -> Yjs
     const updateYjs = (e: fabric.IEvent) => {
       if (isUpdatingRef.current || !yElementsRef.current) return;
-      const obj = e.target as any;
+      const obj = e.target as FabricObjectWithId;
       if (!obj || !obj.id) return;
       
       const data = yElementsRef.current.get(obj.id);
       if (data) {
         yElementsRef.current.set(obj.id, {
           ...data,
-          position: { x: obj.left, y: obj.top },
+          position: { x: obj.left || 0, y: obj.top || 0 },
           size: { 
-            width: obj.width * obj.scaleX, 
-            height: obj.height * obj.scaleY, 
-            radius: obj.radius ? obj.radius * Math.max(obj.scaleX, obj.scaleY) : undefined 
+            width: (obj.width || 0) * (obj.scaleX || 1),
+            height: (obj.height || 0) * (obj.scaleY || 1),
+            radius: obj.radius ? obj.radius * Math.max(obj.scaleX || 1, obj.scaleY || 1) : undefined
           },
           content: obj.text || data.content
         });
