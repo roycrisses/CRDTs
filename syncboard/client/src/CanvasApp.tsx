@@ -7,12 +7,15 @@ import type { Tool } from './components/Toolbar';
 import { Toolbar } from './components/Toolbar';
 import { TopBar } from './components/TopBar';
 import { CursorsLayer } from './components/CursorsLayer';
+import { PropertyMenu } from './components/PropertyMenu';
+import { ZoomControls } from './components/ZoomControls';
 
 export type ElementData = {
   id: string;
-  type: 'rectangle' | 'circle' | 'text' | 'sticky' | 'path';
+  type: 'rectangle' | 'circle' | 'text' | 'sticky' | 'path' | 'arrow';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
+  points?: number[];
   content?: string;
   style: { fill: string; stroke?: string; strokeWidth?: number };
   path?: (string | number)[][];
@@ -20,6 +23,7 @@ export type ElementData = {
 
 interface FabricObjectWithId extends fabric.Object {
   id?: string;
+  subType?: 'sticky' | 'arrow';
 }
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
@@ -34,6 +38,9 @@ export const CanvasApp = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState<{ id: number; name: string; color: string; cursor?: { x: number; y: number } }[]>([]);
+  const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [zoom, setZoom] = useState(1);
 
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const yElementsRef = useRef<Y.Map<ElementData> | null>(null);
@@ -46,7 +53,14 @@ export const CanvasApp = () => {
     if (fabricRef.current) {
       fabricRef.current.isDrawingMode = activeTool === 'pencil';
       fabricRef.current.selection = activeTool === 'select';
-      fabricRef.current.defaultCursor = activeTool === 'select' ? 'default' : 'crosshair';
+
+      if (activeTool === 'hand') {
+        fabricRef.current.defaultCursor = 'grab';
+      } else if (activeTool === 'select') {
+        fabricRef.current.defaultCursor = 'default';
+      } else {
+        fabricRef.current.defaultCursor = 'crosshair';
+      }
 
       // Disable object selection unless in select mode
       fabricRef.current.getObjects().forEach(obj => {
@@ -116,17 +130,17 @@ export const CanvasApp = () => {
       const ctx = fabricCanvas.getContext();
       ctx.save();
       const zoom = fabricCanvas.getZoom();
-      const offset = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+      const vpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0];
 
-      ctx.strokeStyle = '#e2e8f0';
+      ctx.strokeStyle = '#f1f5f9';
       ctx.lineWidth = 1;
       ctx.beginPath();
 
-      for (let i = offset[4] % (grid * zoom); i < fabricCanvas.width!; i += grid * zoom) {
+      for (let i = vpt[4] % (grid * zoom); i < fabricCanvas.width!; i += grid * zoom) {
         ctx.moveTo(i, 0);
         ctx.lineTo(i, fabricCanvas.height!);
       }
-      for (let i = offset[5] % (grid * zoom); i < fabricCanvas.height!; i += grid * zoom) {
+      for (let i = vpt[5] % (grid * zoom); i < fabricCanvas.height!; i += grid * zoom) {
         ctx.moveTo(0, i);
         ctx.lineTo(fabricCanvas.width!, i);
       }
@@ -170,7 +184,8 @@ export const CanvasApp = () => {
             width: 150,
             height: 150,
             fill: data.style.fill,
-            shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.1)', blur: 10, offsetX: 5, offsetY: 5 })
+            shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.05)', blur: 15, offsetX: 5, offsetY: 5 }),
+            rx: 4, ry: 4
           });
           const text = new fabric.IText(data.content || '', {
             fontSize: 16,
@@ -181,6 +196,7 @@ export const CanvasApp = () => {
             left: 75,
             top: 75,
             width: 130,
+            fill: '#1e293b',
             // @ts-expect-error: splitByGrapheme is missing in types but present in fabric
             splitByGrapheme: true
           });
@@ -218,10 +234,34 @@ export const CanvasApp = () => {
             strokeLineCap: 'round',
             strokeLineJoin: 'round'
           });
+        } else if (data.type === 'arrow') {
+          const points = data.points || [0, 0, 100, 0];
+          const line = new fabric.Line(points, {
+            stroke: data.style.fill,
+            strokeWidth: 2,
+            originX: 'center',
+            originY: 'center',
+          });
+          const head = new fabric.Triangle({
+            width: 10,
+            height: 10,
+            fill: data.style.fill,
+            left: points[2],
+            top: points[3],
+            angle: 90,
+            originX: 'center',
+            originY: 'center',
+          });
+          obj = new fabric.Group([line, head], {
+            left: data.position.x,
+            top: data.position.y,
+          });
+          (obj as FabricObjectWithId).subType = 'arrow';
         }
 
         if (obj) {
           (obj as FabricObjectWithId).id = key;
+          if (data.type === 'sticky') (obj as FabricObjectWithId).subType = 'sticky';
           obj.selectable = activeToolRef.current === 'select';
           fabricCanvas.add(obj);
         }
@@ -267,26 +307,29 @@ export const CanvasApp = () => {
 
     fabricCanvas.on('mouse:wheel', (opt) => {
       const delta = opt.e.deltaY;
-      let zoom = fabricCanvas.getZoom();
-      zoom *= 0.999 ** delta;
-      if (zoom > 20) zoom = 20;
-      if (zoom < 0.01) zoom = 0.01;
-      fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      let newZoom = fabricCanvas.getZoom();
+      newZoom *= 0.999 ** delta;
+      if (newZoom > 20) newZoom = 20;
+      if (newZoom < 0.01) newZoom = 0.01;
+      fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, newZoom);
+      setZoom(newZoom);
       opt.e.preventDefault();
       opt.e.stopPropagation();
     });
 
     fabricCanvas.on('mouse:down', (opt) => {
       const evt = opt.e;
-      if (evt.altKey === true || activeToolRef.current === 'select') {
-        if (!fabricCanvas.getActiveObject()) {
-          // @ts-expect-error: custom property on canvas
-          fabricCanvas.isDragging = true;
-          fabricCanvas.selection = false;
-          // @ts-expect-error: custom property on canvas
-          fabricCanvas.lastPosX = evt.clientX;
-          // @ts-expect-error: custom property on canvas
-          fabricCanvas.lastPosY = evt.clientY;
+      if (evt.altKey === true || activeToolRef.current === 'hand' || (activeToolRef.current === 'select' && !fabricCanvas.getActiveObject())) {
+        // @ts-expect-error: custom property on canvas
+        fabricCanvas.isDragging = true;
+        fabricCanvas.selection = false;
+        // @ts-expect-error: custom property on canvas
+        fabricCanvas.lastPosX = evt.clientX;
+        // @ts-expect-error: custom property on canvas
+        fabricCanvas.lastPosY = evt.clientY;
+        if (activeToolRef.current === 'hand') {
+          fabricCanvas.defaultCursor = 'grabbing';
+          fabricCanvas.renderAll();
         }
       }
     });
@@ -320,9 +363,59 @@ export const CanvasApp = () => {
       // @ts-expect-error: custom property on canvas
       fabricCanvas.isDragging = false;
       fabricCanvas.selection = activeToolRef.current === 'select';
+      if (activeToolRef.current === 'hand') {
+        fabricCanvas.defaultCursor = 'grab';
+        fabricCanvas.renderAll();
+      }
     });
 
     fabricCanvas.on('object:modified', updateYjs);
+
+    fabricCanvas.on('selection:created', (e) => {
+      if (e.target) {
+        const rect = e.target.getBoundingRect();
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        if (canvasRect) {
+          setMenuPosition({
+            top: canvasRect.top + rect.top,
+            left: canvasRect.left + rect.left + rect.width / 2
+          });
+        }
+        setSelectedObject(e.target);
+      }
+    });
+
+    fabricCanvas.on('selection:updated', (e) => {
+      if (e.target) {
+        const rect = e.target.getBoundingRect();
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        if (canvasRect) {
+          setMenuPosition({
+            top: canvasRect.top + rect.top,
+            left: canvasRect.left + rect.left + rect.width / 2
+          });
+        }
+        setSelectedObject(e.target);
+      }
+    });
+
+    fabricCanvas.on('selection:cleared', () => {
+      setSelectedObject(null);
+    });
+
+    fabricCanvas.on('object:moving', (e) => {
+      if (e.target) {
+        const rect = e.target.getBoundingRect();
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        if (canvasRect) {
+          setMenuPosition({
+            top: canvasRect.top + rect.top,
+            left: canvasRect.left + rect.left + rect.width / 2
+          });
+        }
+      }
+    });
+
     fabricCanvas.on('path:created', (e: fabric.IEvent) => {
       const path = (e as unknown as { path: fabric.Path & { id?: string } }).path;
       const id = crypto.randomUUID();
@@ -330,7 +423,7 @@ export const CanvasApp = () => {
 
       const data: ElementData = {
         id,
-        type: 'path',
+        type: 'path' as const,
         position: { x: path.left || 0, y: path.top || 0 },
         size: { width: path.width || 0, height: path.height || 0 },
         style: { fill: 'transparent', stroke: '#4f46e5', strokeWidth: 3 },
@@ -370,8 +463,12 @@ export const CanvasApp = () => {
         }
       } else if (e.key.toLowerCase() === 'v') {
         setActiveTool('select');
+      } else if (e.key.toLowerCase() === 'h') {
+        setActiveTool('hand');
       } else if (e.key.toLowerCase() === 'p') {
         setActiveTool('pencil');
+      } else if (e.key.toLowerCase() === 'a') {
+        setActiveTool('arrow');
       } else if (e.key.toLowerCase() === 'r') {
         setActiveTool('rectangle');
       } else if (e.key.toLowerCase() === 'o') {
@@ -399,28 +496,82 @@ export const CanvasApp = () => {
 
     const center = fabricRef.current.getVpCenter();
     const id = crypto.randomUUID();
-    const stickyColors = ['#fef3c7', '#dcfce7', '#dbeafe', '#f3e8ff', '#fee2e2'];
+    const stickyColors = ['#fef9c3', '#dcfce7', '#dbeafe', '#f3e8ff', '#fee2e2', '#ffedd5'];
 
     const data: ElementData = {
       id,
-      type: type as 'rectangle' | 'circle' | 'text' | 'sticky',
+      type: type as 'rectangle' | 'circle' | 'text' | 'sticky' | 'arrow',
       position: { x: center.x - 50, y: center.y - 40 },
       size: type === 'sticky' ? { width: 150, height: 150 } : (type === 'circle' ? { width: 80, height: 80, radius: 40 } : { width: 120, height: 80 }),
       content: (type === 'text' || type === 'sticky') ? 'Type something...' : undefined,
-      style: { fill: type === 'sticky' ? stickyColors[Math.floor(Math.random() * stickyColors.length)] : COLORS[Math.floor(Math.random() * COLORS.length)] }
+      style: {
+        fill: type === 'sticky' ? stickyColors[Math.floor(Math.random() * stickyColors.length)] : COLORS[Math.floor(Math.random() * COLORS.length)],
+        strokeWidth: ((type as string) === 'path' || type === 'arrow') ? 3 : 0
+      },
+      points: type === 'arrow' ? [0, 0, 100, 0] : undefined
     };
 
-    if (type !== 'select' && type !== 'pencil') {
+    if (type !== 'select' && type !== 'pencil' && type !== 'hand') {
       yElementsRef.current.set(id, data);
     }
   }, []);
 
   const handleToolChange = (tool: Tool) => {
-    if (tool !== 'select' && tool !== 'pencil') {
+    if (tool !== 'select' && tool !== 'pencil' && tool !== 'hand') {
       addShape(tool);
       setActiveTool('select');
     } else {
       setActiveTool(tool);
+    }
+  };
+
+  const handleStyleChange = (style: { fill?: string; stroke?: string; strokeWidth?: number }) => {
+    if (!selectedObject || !yElementsRef.current) return;
+
+    const obj = selectedObject as FabricObjectWithId;
+    if (!obj.id) return;
+
+    const data = yElementsRef.current.get(obj.id);
+    if (data) {
+      const newData = {
+        ...data,
+        style: {
+          ...data.style,
+          fill: style.fill || data.style.fill,
+          stroke: style.stroke || data.style.stroke || (style.fill ? style.fill : data.style.stroke),
+          strokeWidth: style.strokeWidth ?? data.style.strokeWidth
+        }
+      };
+      yElementsRef.current.set(obj.id, newData);
+
+      // Update fabric object locally for immediate feedback
+      const dataType = data.type as string;
+      const subType = obj.subType;
+
+      if (subType === 'sticky' && obj instanceof fabric.Group) {
+        const rect = obj.item(0) as fabric.Rect;
+        if (style.fill) rect.set({ fill: style.fill });
+      } else if (subType === 'arrow' && obj instanceof fabric.Group) {
+        if (style.fill) {
+          obj.getObjects().forEach((child) => {
+            if (child instanceof fabric.Line) child.set({ stroke: style.fill });
+            else child.set({ fill: style.fill });
+          });
+        }
+        if (style.strokeWidth !== undefined) {
+          const line = obj.item(0) as unknown as fabric.Line;
+          line.set({ strokeWidth: style.strokeWidth });
+        }
+      } else {
+        if (style.fill) {
+          obj.set({ fill: style.fill });
+          if (dataType === 'path' || dataType === 'arrow') {
+            obj.set({ stroke: style.fill });
+          }
+        }
+        if (style.strokeWidth !== undefined) obj.set({ strokeWidth: style.strokeWidth });
+      }
+      fabricRef.current?.renderAll();
     }
   };
 
@@ -432,6 +583,27 @@ export const CanvasApp = () => {
 
   const handleUndo = () => undoManagerRef.current?.undo();
   const handleRedo = () => undoManagerRef.current?.redo();
+
+  const handleZoomIn = () => {
+    if (!fabricRef.current) return;
+    const newZoom = Math.min(fabricRef.current.getZoom() * 1.2, 20);
+    fabricRef.current.setZoom(newZoom);
+    setZoom(newZoom);
+  };
+
+  const handleZoomOut = () => {
+    if (!fabricRef.current) return;
+    const newZoom = Math.max(fabricRef.current.getZoom() / 1.2, 0.01);
+    fabricRef.current.setZoom(newZoom);
+    setZoom(newZoom);
+  };
+
+  const handleZoomReset = () => {
+    if (!fabricRef.current) return;
+    fabricRef.current.setZoom(1);
+    fabricRef.current.absolutePan({ x: 0, y: 0 });
+    setZoom(1);
+  };
 
   return (
     <div ref={containerRef} className="relative w-screen h-screen bg-slate-50 overflow-hidden">
@@ -451,6 +623,19 @@ export const CanvasApp = () => {
       />
 
       <CursorsLayer users={remoteUsers} />
+
+      <PropertyMenu
+        activeObject={selectedObject}
+        onStyleChange={handleStyleChange}
+        position={menuPosition}
+      />
+
+      <ZoomControls
+        zoom={zoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onReset={handleZoomReset}
+      />
 
       <canvas ref={canvasRef} />
     </div>
