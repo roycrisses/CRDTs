@@ -7,10 +7,13 @@ import type { Tool } from './components/Toolbar';
 import { Toolbar } from './components/Toolbar';
 import { TopBar } from './components/TopBar';
 import { CursorsLayer } from './components/CursorsLayer';
+import { PropertyMenu } from './components/PropertyMenu';
+import { ZoomControls } from './components/ZoomControls';
 
 export type ElementData = {
   id: string;
-  type: 'rectangle' | 'circle' | 'text' | 'sticky' | 'path';
+  type: 'rectangle' | 'circle' | 'text' | 'sticky' | 'path' | 'arrow';
+  subType?: 'sticky' | 'arrow';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
   content?: string;
@@ -20,6 +23,20 @@ export type ElementData = {
 
 interface FabricObjectWithId extends fabric.Object {
   id?: string;
+  subType?: string;
+  isDragging?: boolean;
+  lastPosX?: number;
+  lastPosY?: number;
+  radius?: number;
+  text?: string;
+  item?: (index: number) => fabric.Object;
+  splitByGrapheme?: boolean;
+}
+
+interface FabricCanvasExtended extends fabric.Canvas {
+  isDragging?: boolean;
+  lastPosX?: number;
+  lastPosY?: number;
 }
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
@@ -34,8 +51,10 @@ export const CanvasApp = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState<{ id: number; name: string; color: string; cursor?: { x: number; y: number } }[]>([]);
+  const [selectedObject, setSelectedObject] = useState<{ id: string; type: string; fill: string; subType?: string } | null>(null);
+  const [zoom, setZoom] = useState(1);
 
-  const fabricRef = useRef<fabric.Canvas | null>(null);
+  const fabricRef = useRef<FabricCanvasExtended | null>(null);
   const yElementsRef = useRef<Y.Map<ElementData> | null>(null);
   const undoManagerRef = useRef<Y.UndoManager | null>(null);
   const isUpdatingRef = useRef(false);
@@ -46,7 +65,13 @@ export const CanvasApp = () => {
     if (fabricRef.current) {
       fabricRef.current.isDrawingMode = activeTool === 'pencil';
       fabricRef.current.selection = activeTool === 'select';
-      fabricRef.current.defaultCursor = activeTool === 'select' ? 'default' : 'crosshair';
+
+      const getCursor = () => {
+        if (activeTool === 'select') return 'default';
+        if (activeTool === 'hand') return 'grab';
+        return 'crosshair';
+      };
+      fabricRef.current.defaultCursor = getCursor();
 
       // Disable object selection unless in select mode
       fabricRef.current.getObjects().forEach(obj => {
@@ -107,7 +132,7 @@ export const CanvasApp = () => {
       height: window.innerHeight,
       backgroundColor: '#f8fafc',
       preserveObjectStacking: true,
-    });
+    }) as FabricCanvasExtended;
     fabricRef.current = fabricCanvas;
 
     // Grid pattern
@@ -148,6 +173,12 @@ export const CanvasApp = () => {
           existing.set({ left: data.position.x, top: data.position.y });
           rect.set({ fill: data.style.fill });
           text.set({ text: data.content });
+        } else if (data.type === 'arrow' && existing instanceof fabric.Group) {
+          const line = existing.item(0) as unknown as fabric.Line;
+          const triangle = existing.item(1) as unknown as fabric.Triangle;
+          existing.set({ left: data.position.x, top: data.position.y });
+          line.set({ stroke: data.style.fill });
+          triangle.set({ fill: data.style.fill });
         } else {
           existing.set({
             left: data.position.x,
@@ -218,6 +249,26 @@ export const CanvasApp = () => {
             strokeLineCap: 'round',
             strokeLineJoin: 'round'
           });
+        } else if (data.type === 'arrow') {
+          const line = new fabric.Line([0, 5, 100, 5], {
+            stroke: data.style.fill,
+            strokeWidth: 4,
+          });
+          const triangle = new fabric.Triangle({
+            width: 15,
+            height: 15,
+            fill: data.style.fill,
+            left: 100,
+            top: 5,
+            angle: 90,
+            originX: 'center',
+            originY: 'center',
+          });
+          obj = new fabric.Group([line, triangle], {
+            left: data.position.x,
+            top: data.position.y,
+          });
+          (obj as FabricObjectWithId).subType = 'arrow';
         }
 
         if (obj) {
@@ -256,10 +307,8 @@ export const CanvasApp = () => {
           size: { 
             width: obj.width! * obj.scaleX!,
             height: obj.height! * obj.scaleY!,
-            // @ts-expect-error: radius is present on Circle
             radius: obj.radius ? obj.radius * Math.max(obj.scaleX!, obj.scaleY!) : undefined
           },
-          // @ts-expect-error: text is present on IText
           content: obj.text || data.content
         });
       }
@@ -267,26 +316,25 @@ export const CanvasApp = () => {
 
     fabricCanvas.on('mouse:wheel', (opt) => {
       const delta = opt.e.deltaY;
-      let zoom = fabricCanvas.getZoom();
-      zoom *= 0.999 ** delta;
-      if (zoom > 20) zoom = 20;
-      if (zoom < 0.01) zoom = 0.01;
-      fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      let newZoom = fabricCanvas.getZoom();
+      newZoom *= 0.999 ** delta;
+      if (newZoom > 20) newZoom = 20;
+      if (newZoom < 0.01) newZoom = 0.01;
+      fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, newZoom);
+      setZoom(newZoom);
       opt.e.preventDefault();
       opt.e.stopPropagation();
     });
 
     fabricCanvas.on('mouse:down', (opt) => {
       const evt = opt.e;
-      if (evt.altKey === true || activeToolRef.current === 'select') {
-        if (!fabricCanvas.getActiveObject()) {
-          // @ts-expect-error: custom property on canvas
-          fabricCanvas.isDragging = true;
-          fabricCanvas.selection = false;
-          // @ts-expect-error: custom property on canvas
-          fabricCanvas.lastPosX = evt.clientX;
-          // @ts-expect-error: custom property on canvas
-          fabricCanvas.lastPosY = evt.clientY;
+      if (evt.altKey === true || activeToolRef.current === 'hand' || (activeToolRef.current === 'select' && !fabricCanvas.getActiveObject())) {
+        fabricCanvas.isDragging = true;
+        fabricCanvas.selection = false;
+        fabricCanvas.lastPosX = evt.clientX;
+        fabricCanvas.lastPosY = evt.clientY;
+        if (activeToolRef.current === 'hand') {
+          fabricCanvas.setCursor('grabbing');
         }
       }
     });
@@ -300,29 +348,50 @@ export const CanvasApp = () => {
         y: e.clientY,
       });
 
-      // @ts-expect-error: custom property on canvas
       if (fabricCanvas.isDragging) {
         const vpt = fabricCanvas.viewportTransform!;
-        // @ts-expect-error: custom property on canvas
-        vpt[4] += e.clientX - fabricCanvas.lastPosX;
-        // @ts-expect-error: custom property on canvas
-        vpt[5] += e.clientY - fabricCanvas.lastPosY;
+        vpt[4] += e.clientX - fabricCanvas.lastPosX!;
+        vpt[5] += e.clientY - fabricCanvas.lastPosY!;
         fabricCanvas.requestRenderAll();
-        // @ts-expect-error: custom property on canvas
         fabricCanvas.lastPosX = e.clientX;
-        // @ts-expect-error: custom property on canvas
         fabricCanvas.lastPosY = e.clientY;
       }
     });
 
     fabricCanvas.on('mouse:up', () => {
       fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform!);
-      // @ts-expect-error: custom property on canvas
       fabricCanvas.isDragging = false;
       fabricCanvas.selection = activeToolRef.current === 'select';
+      if (activeToolRef.current === 'hand') {
+        fabricCanvas.setCursor('grab');
+      }
     });
 
     fabricCanvas.on('object:modified', updateYjs);
+    fabricCanvas.on('selection:created', (e) => {
+      const obj = e.target as FabricObjectWithId;
+      if (obj && obj.id) {
+        setSelectedObject({
+          id: obj.id,
+          type: obj.type || '',
+          fill: (obj.fill as string) || (obj.item ? (obj.item(0).fill as string) : ''),
+          subType: obj.subType
+        });
+      }
+    });
+    fabricCanvas.on('selection:updated', (e) => {
+      const obj = e.target as FabricObjectWithId;
+      if (obj && obj.id) {
+        setSelectedObject({
+          id: obj.id,
+          type: obj.type || '',
+          fill: (obj.fill as string) || (obj.item ? (obj.item(0).fill as string) : ''),
+          subType: obj.subType
+        });
+      }
+    });
+    fabricCanvas.on('selection:cleared', () => setSelectedObject(null));
+
     fabricCanvas.on('path:created', (e: fabric.IEvent) => {
       const path = (e as unknown as { path: fabric.Path & { id?: string } }).path;
       const id = crypto.randomUUID();
@@ -380,6 +449,10 @@ export const CanvasApp = () => {
         setActiveTool('text');
       } else if (e.key.toLowerCase() === 's') {
         setActiveTool('sticky');
+      } else if (e.key.toLowerCase() === 'h') {
+        setActiveTool('hand');
+      } else if (e.key.toLowerCase() === 'a') {
+        setActiveTool('arrow');
       }
     };
 
@@ -403,7 +476,8 @@ export const CanvasApp = () => {
 
     const data: ElementData = {
       id,
-      type: type as 'rectangle' | 'circle' | 'text' | 'sticky',
+      type: type as 'rectangle' | 'circle' | 'text' | 'sticky' | 'arrow',
+      subType: type === 'sticky' || type === 'arrow' ? type : undefined,
       position: { x: center.x - 50, y: center.y - 40 },
       size: type === 'sticky' ? { width: 150, height: 150 } : (type === 'circle' ? { width: 80, height: 80, radius: 40 } : { width: 120, height: 80 }),
       content: (type === 'text' || type === 'sticky') ? 'Type something...' : undefined,
@@ -416,7 +490,7 @@ export const CanvasApp = () => {
   }, []);
 
   const handleToolChange = (tool: Tool) => {
-    if (tool !== 'select' && tool !== 'pencil') {
+    if (tool !== 'select' && tool !== 'pencil' && tool !== 'hand') {
       addShape(tool);
       setActiveTool('select');
     } else {
@@ -433,6 +507,60 @@ export const CanvasApp = () => {
   const handleUndo = () => undoManagerRef.current?.undo();
   const handleRedo = () => undoManagerRef.current?.redo();
 
+  const updateObjectProperty = (properties: { fill?: string; stroke?: string }) => {
+    if (!selectedObject || !yElementsRef.current) return;
+    const data = yElementsRef.current.get(selectedObject.id);
+    if (data) {
+      yElementsRef.current.set(selectedObject.id, {
+        ...data,
+        style: { ...data.style, ...properties }
+      });
+      setSelectedObject({ ...selectedObject, fill: properties.fill || selectedObject.fill });
+    }
+  };
+
+  const deleteSelected = () => {
+    if (!selectedObject || !yElementsRef.current) return;
+    yElementsRef.current.delete(selectedObject.id);
+    fabricRef.current?.discardActiveObject();
+    fabricRef.current?.renderAll();
+    setSelectedObject(null);
+  };
+
+  const handleZoomIn = () => {
+    if (!fabricRef.current) return;
+    const newZoom = Math.min(fabricRef.current.getZoom() * 1.2, 20);
+    fabricRef.current.setZoom(newZoom);
+    setZoom(newZoom);
+  };
+
+  const handleZoomOut = () => {
+    if (!fabricRef.current) return;
+    const newZoom = Math.max(fabricRef.current.getZoom() / 1.2, 0.01);
+    fabricRef.current.setZoom(newZoom);
+    setZoom(newZoom);
+  };
+
+  const handleResetZoom = () => {
+    if (!fabricRef.current) return;
+    fabricRef.current.setZoom(1);
+    fabricRef.current.viewportTransform = [1, 0, 0, 1, 0, 0];
+    setZoom(1);
+    fabricRef.current.renderAll();
+  };
+
+  const exportAsPNG = () => {
+    if (!fabricRef.current) return;
+    const dataURL = fabricRef.current.toDataURL({
+      format: 'png',
+      multiplier: 2,
+    });
+    const link = document.createElement('a');
+    link.download = `syncboard-${Date.now()}.png`;
+    link.href = dataURL;
+    link.click();
+  };
+
   return (
     <div ref={containerRef} className="relative w-screen h-screen bg-slate-50 overflow-hidden">
       <TopBar
@@ -442,12 +570,28 @@ export const CanvasApp = () => {
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onExport={exportAsPNG}
       />
 
       <Toolbar
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+      />
+
+      {selectedObject && (
+        <PropertyMenu
+          selectedObject={selectedObject}
+          onUpdate={updateObjectProperty}
+          onDelete={deleteSelected}
+        />
+      )}
+
+      <ZoomControls
+        zoom={zoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
       />
 
       <CursorsLayer users={remoteUsers} />
