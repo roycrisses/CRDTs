@@ -21,7 +21,7 @@ export const CursorsLayer: React.FC<CursorsLayerProps> = ({ users }) => {
         return (
           <div
             key={user.id}
-            className="absolute transition-transform duration-75 ease-linear"
+            className="absolute transition-all duration-100 ease-out"
             style={{
               transform: `translate(${user.cursor.x}px, ${user.cursor.y}px)`,
             }}
