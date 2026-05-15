@@ -1,8 +1,8 @@
 import React from 'react';
-import { MousePointer2, Square, Circle as CircleIcon, Type, StickyNote, Pencil, Trash2 } from 'lucide-react';
+import { MousePointer2, Hand, Square, Circle as CircleIcon, Type, StickyNote, Pencil, MoveUpRight, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export type Tool = 'select' | 'pencil' | 'rectangle' | 'circle' | 'text' | 'sticky';
+export type Tool = 'select' | 'hand' | 'pencil' | 'rectangle' | 'circle' | 'text' | 'sticky' | 'arrow';
 
 interface ToolbarProps {
   activeTool: Tool;
@@ -13,7 +13,9 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
   const tools = [
     { id: 'select', icon: MousePointer2, label: 'Select (V)' },
+    { id: 'hand', icon: Hand, label: 'Hand (H)' },
     { id: 'pencil', icon: Pencil, label: 'Pencil (P)' },
+    { id: 'arrow', icon: MoveUpRight, label: 'Arrow (A)' },
     { id: 'rectangle', icon: Square, label: 'Rectangle (R)' },
     { id: 'circle', icon: CircleIcon, label: 'Circle (O)' },
     { id: 'text', icon: Type, label: 'Text (T)' },
