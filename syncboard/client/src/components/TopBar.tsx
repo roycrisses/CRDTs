@@ -1,5 +1,5 @@
 import React from 'react';
-import { Undo2, Redo2, Share2, Activity } from 'lucide-react';
+import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
@@ -9,6 +9,8 @@ interface TopBarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onExport: () => void;
+  users: { id: number; name: string; color: string }[];
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -17,7 +19,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onUndo,
   onRedo,
   canUndo,
-  canRedo
+  canRedo,
+  onExport,
+  users,
 }) => {
   return (
     <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-white/20 z-50">
@@ -32,6 +36,19 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-2">
+        <div className="flex -space-x-2 mr-4">
+          {users.map((user) => (
+            <div
+              key={user.id}
+              className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-sm transition-transform hover:-translate-y-1 hover:z-10"
+              style={{ backgroundColor: user.color }}
+              title={user.name}
+            >
+              {user.name.split(' ').map(n => n[0]).join('')}
+            </div>
+          ))}
+        </div>
+
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -59,7 +76,14 @@ export const TopBar: React.FC<TopBarProps> = ({
           )} />
           {status === 'connected' ? 'Connected' : 'Reconnecting...'}
         </div>
-        <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
+        <button
+          onClick={onExport}
+          className="ml-2 p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+          title="Export as PNG"
+        >
+          <Download size={20} />
+        </button>
+        <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
           Share
         </button>

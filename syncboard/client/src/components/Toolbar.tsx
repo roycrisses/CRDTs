@@ -1,8 +1,8 @@
 import React from 'react';
-import { MousePointer2, Square, Circle as CircleIcon, Type, StickyNote, Pencil, Trash2 } from 'lucide-react';
+import { MousePointer2, Square, Circle as CircleIcon, Type, StickyNote, Pencil, Trash2, Hand, MoveRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export type Tool = 'select' | 'pencil' | 'rectangle' | 'circle' | 'text' | 'sticky';
+export type Tool = 'select' | 'pencil' | 'rectangle' | 'circle' | 'text' | 'sticky' | 'hand' | 'arrow';
 
 interface ToolbarProps {
   activeTool: Tool;
@@ -13,15 +13,17 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
   const tools = [
     { id: 'select', icon: MousePointer2, label: 'Select (V)' },
+    { id: 'hand', icon: Hand, label: 'Hand (H)' },
     { id: 'pencil', icon: Pencil, label: 'Pencil (P)' },
     { id: 'rectangle', icon: Square, label: 'Rectangle (R)' },
     { id: 'circle', icon: CircleIcon, label: 'Circle (O)' },
+    { id: 'arrow', icon: MoveRight, label: 'Arrow (A)' },
     { id: 'text', icon: Type, label: 'Text (T)' },
     { id: 'sticky', icon: StickyNote, label: 'Sticky Note (S)' },
   ] as const;
 
   return (
-    <div className="fixed left-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 p-2 bg-white rounded-2xl shadow-xl border border-slate-200 z-50">
+    <div className="fixed left-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 p-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 z-50">
       {tools.map((tool) => (
         <button
           key={tool.id}
