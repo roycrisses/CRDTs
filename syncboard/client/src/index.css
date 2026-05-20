@@ -52,8 +52,14 @@ body {
   margin: 0;
   overflow: hidden;
   background-color: #f8fafc;
+  background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
 canvas {
   outline: none;
+}
+
+.fabric-canvas-container {
+  background-color: transparent !important;
 }
