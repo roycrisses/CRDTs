@@ -7,6 +7,7 @@ interface TopBarProps {
   roomName: string;
   onUndo: () => void;
   onRedo: () => void;
+  onExport: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -16,6 +17,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   roomName,
   onUndo,
   onRedo,
+  onExport,
   canUndo,
   canRedo
 }) => {
@@ -59,6 +61,12 @@ export const TopBar: React.FC<TopBarProps> = ({
           )} />
           {status === 'connected' ? 'Connected' : 'Reconnecting...'}
         </div>
+        <button
+          onClick={onExport}
+          className="ml-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all active:scale-95"
+        >
+          Export
+        </button>
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
           Share
