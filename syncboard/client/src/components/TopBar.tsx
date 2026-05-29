@@ -1,5 +1,5 @@
 import React from 'react';
-import { Undo2, Redo2, Share2, Activity } from 'lucide-react';
+import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
@@ -7,8 +7,10 @@ interface TopBarProps {
   roomName: string;
   onUndo: () => void;
   onRedo: () => void;
+  onExport: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  users: { id: number; name: string; color: string }[];
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -16,8 +18,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   roomName,
   onUndo,
   onRedo,
+  onExport,
   canUndo,
-  canRedo
+  canRedo,
+  users
 }) => {
   return (
     <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-white/20 z-50">
@@ -28,6 +32,21 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div>
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
           <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+        </div>
+
+        <div className="w-px h-6 bg-slate-200 mx-2" />
+
+        <div className="flex -space-x-2">
+          {users.map((user) => (
+            <div
+              key={user.id}
+              className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+              style={{ backgroundColor: user.color }}
+              title={user.name}
+            >
+              {user.name.split(' ').map(n => n[0]).join('')}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -59,6 +78,13 @@ export const TopBar: React.FC<TopBarProps> = ({
           )} />
           {status === 'connected' ? 'Connected' : 'Reconnecting...'}
         </div>
+        <button
+          onClick={onExport}
+          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+          title="Export as PNG"
+        >
+          <Download size={20} />
+        </button>
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
           Share
