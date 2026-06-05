@@ -6,6 +6,7 @@ interface RemoteUser {
   name: string;
   color: string;
   cursor?: { x: number; y: number };
+  selectedIds?: string[];
 }
 
 interface CursorsLayerProps {

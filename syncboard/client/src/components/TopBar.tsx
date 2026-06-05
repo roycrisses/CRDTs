@@ -1,5 +1,5 @@
 import React from 'react';
-import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
+import { Undo2, Redo2, Share2, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
@@ -9,7 +9,7 @@ interface TopBarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
+  onExport: (format: 'png' | 'svg') => void;
   users: { id: number; name: string; color: string }[];
 }
 
@@ -87,13 +87,22 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200 mx-2" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Export to PNG"
-        >
-          <Download size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onExport('png')}
+            className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-xs font-bold"
+            title="Export PNG"
+          >
+            PNG
+          </button>
+          <button
+            onClick={() => onExport('svg')}
+            className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-xs font-bold"
+            title="Export SVG"
+          >
+            SVG
+          </button>
+        </div>
 
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
