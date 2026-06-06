@@ -14,7 +14,7 @@ interface CursorsLayerProps {
 
 export const CursorsLayer: React.FC<CursorsLayerProps> = ({ users }) => {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden z-40">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden z-[9999]">
       {users.map((user) => {
         if (!user.cursor) return null;
 
