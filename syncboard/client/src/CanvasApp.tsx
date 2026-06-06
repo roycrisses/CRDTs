@@ -12,11 +12,12 @@ import { PropertyMenu } from './components/PropertyMenu';
 
 export type ElementData = {
   id: string;
-  type: 'rectangle' | 'circle' | 'text' | 'sticky' | 'path' | 'arrow';
+  type: 'rectangle' | 'circle' | 'text' | 'sticky' | 'path' | 'arrow' | 'image';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
-  content?: string;
-  style: { fill: string; stroke?: string; strokeWidth?: number };
+  content?: string; // This will store base64 for images
+  style: { fill: string; stroke?: string; strokeWidth?: number; opacity?: number };
+  font?: { fontSize?: number; fontFamily?: string };
   path?: (string | number)[][];
   scaleX?: number;
   scaleY?: number;
@@ -57,7 +58,18 @@ export const CanvasApp = () => {
   useEffect(() => {
     activeToolRef.current = activeTool;
     if (fabricRef.current) {
-      fabricRef.current.isDrawingMode = activeTool === 'pencil';
+      fabricRef.current.isDrawingMode = activeTool === 'pencil' || activeTool === 'highlighter';
+
+      if (activeTool === 'highlighter') {
+        fabricRef.current.freeDrawingBrush = new fabric.PencilBrush(fabricRef.current);
+        fabricRef.current.freeDrawingBrush.width = 25;
+        fabricRef.current.freeDrawingBrush.color = 'rgba(255, 255, 0, 0.4)';
+      } else if (activeTool === 'pencil') {
+        fabricRef.current.freeDrawingBrush = new fabric.PencilBrush(fabricRef.current);
+        fabricRef.current.freeDrawingBrush.width = 3;
+        fabricRef.current.freeDrawingBrush.color = '#4f46e5';
+      }
+
       fabricRef.current.selection = activeTool === 'select';
       fabricRef.current.defaultCursor = activeTool === 'select' ? 'default' : (activeTool === 'hand' ? 'grab' : 'crosshair');
 
@@ -136,6 +148,7 @@ export const CanvasApp = () => {
           top: data.position.y,
           scaleX: data.scaleX || 1,
           scaleY: data.scaleY || 1,
+          opacity: data.style.opacity ?? 1,
         };
 
         if (data.type === 'sticky' && existing instanceof fabric.Group) {
@@ -143,7 +156,11 @@ export const CanvasApp = () => {
           const text = existing.item(1) as unknown as fabric.IText;
           existing.set(commonProps);
           rect.set({ fill: data.style.fill });
-          text.set({ text: data.content });
+          text.set({
+            text: data.content,
+            fontSize: data.font?.fontSize ?? 16,
+            fontFamily: data.font?.fontFamily ?? 'Inter, sans-serif'
+          });
         } else if (data.type === 'arrow' && existing instanceof fabric.Group) {
           const line = existing.item(0) as unknown as fabric.Line;
           const tip = existing.item(1) as unknown as fabric.Triangle;
@@ -160,7 +177,14 @@ export const CanvasApp = () => {
             strokeWidth: data.style.strokeWidth,
           });
           if (data.type === 'text' && existing instanceof fabric.IText) {
-            existing.set({ text: data.content });
+            existing.set({
+              text: data.content,
+              fontSize: data.font?.fontSize ?? 24,
+              fontFamily: data.font?.fontFamily ?? 'Inter, sans-serif'
+            });
+          } else if (data.type === 'image' && existing instanceof fabric.Image) {
+            // Usually we don't change image source after creation in this simple sync
+            // but we could if data.content changed.
           }
         }
 
@@ -257,6 +281,24 @@ export const CanvasApp = () => {
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
+        } else if (data.type === 'image' && data.content) {
+          fabric.Image.fromURL(data.content, (img) => {
+            img.set({
+              left: data.position.x,
+              top: data.position.y,
+              scaleX: data.scaleX || 1,
+              scaleY: data.scaleY || 1,
+              opacity: data.style.opacity ?? 1,
+            });
+            (img as FabricObjectWithId).id = key;
+            img.selectable = activeToolRef.current === 'select';
+            fabricCanvas.add(img);
+            if (typeof data.zIndex === 'number') {
+              img.moveTo(data.zIndex);
+            }
+            fabricCanvas.renderAll();
+          });
+          return;
         }
 
         if (obj) {
@@ -423,6 +465,8 @@ export const CanvasApp = () => {
         setActiveTool('hand');
       } else if (e.key.toLowerCase() === 'p') {
         setActiveTool('pencil');
+      } else if (e.key.toLowerCase() === 'i') {
+        setActiveTool('highlighter');
       } else if (e.key.toLowerCase() === 'a') {
         setActiveTool('arrow');
       } else if (e.key.toLowerCase() === 'r') {
@@ -469,7 +513,7 @@ export const CanvasApp = () => {
   }, []);
 
   const handleToolChange = (tool: Tool) => {
-    if (tool !== 'select' && tool !== 'pencil' && tool !== 'hand') {
+    if (tool !== 'select' && tool !== 'pencil' && tool !== 'highlighter' && tool !== 'hand') {
       addShape(tool);
       setActiveTool('select');
     } else {
@@ -477,7 +521,7 @@ export const CanvasApp = () => {
     }
   };
 
-  const updateProperty = (props: Partial<fabric.IObjectOptions> | { content?: string }) => {
+  const updateProperty = (props: Partial<fabric.IObjectOptions> & { content?: string, zIndex?: 'front' | 'back', fontSize?: number, fontFamily?: string }) => {
     if (!fabricRef.current || !yElementsRef.current) return;
     const activeObjects = fabricRef.current.getActiveObjects();
 
@@ -489,8 +533,22 @@ export const CanvasApp = () => {
         if ('fill' in props) newData.style.fill = props.fill as string;
         if ('stroke' in props) newData.style.stroke = props.stroke as string;
         if ('strokeWidth' in props) newData.style.strokeWidth = props.strokeWidth;
+        if ('opacity' in props) newData.style.opacity = props.opacity;
+        if ('fontSize' in props) {
+          newData.font = { ...newData.font, fontSize: props.fontSize };
+        }
+        if ('fontFamily' in props) {
+          newData.font = { ...newData.font, fontFamily: props.fontFamily as string };
+        }
         if ('content' in props) newData.content = props.content;
-        yElementsRef.current?.set(obj.id, newData);
+
+        if (props.zIndex === 'front') {
+          newData.zIndex = fabricRef.current!.getObjects().length;
+        } else if (props.zIndex === 'back') {
+          newData.zIndex = 0;
+        }
+
+        yElementsRef.current?.set(obj.id, newData as ElementData);
       }
     });
     fabricRef.current.requestRenderAll();
@@ -534,6 +592,29 @@ export const CanvasApp = () => {
     }
   };
 
+  const handleImageUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (f) => {
+      const data = f.target?.result as string;
+      if (!yElementsRef.current || !fabricRef.current) return;
+
+      const center = fabricRef.current.getVpCenter();
+      const id = crypto.randomUUID();
+
+      const elementData: ElementData = {
+        id,
+        type: 'image',
+        position: { x: center.x - 100, y: center.y - 100 },
+        size: { width: 200, height: 200 },
+        content: data,
+        style: { fill: 'transparent' }
+      };
+
+      yElementsRef.current.set(id, elementData);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleUndo = () => undoManagerRef.current?.undo();
   const handleRedo = () => undoManagerRef.current?.redo();
 
@@ -554,6 +635,7 @@ export const CanvasApp = () => {
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+        onImageUpload={handleImageUpload}
       />
 
       <ZoomControls
