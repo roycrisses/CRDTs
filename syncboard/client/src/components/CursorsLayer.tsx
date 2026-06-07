@@ -21,20 +21,23 @@ export const CursorsLayer: React.FC<CursorsLayerProps> = ({ users }) => {
         return (
           <div
             key={user.id}
-            className="absolute transition-transform duration-75 ease-linear"
+            className="absolute transition-all duration-100 ease-out"
             style={{
+              left: 0,
+              top: 0,
               transform: `translate(${user.cursor.x}px, ${user.cursor.y}px)`,
             }}
           >
             <MousePointer2
-              className="w-5 h-5"
+              className="w-5 h-5 drop-shadow-sm"
               style={{
                 fill: user.color,
-                color: user.color,
+                color: 'white',
+                strokeWidth: 2
               }}
             />
             <div
-              className="ml-4 px-2 py-1 rounded-md text-white text-[10px] font-bold whitespace-nowrap shadow-sm"
+              className="ml-4 px-2 py-1 rounded-full text-white text-[10px] font-bold whitespace-nowrap shadow-md border border-white/20"
               style={{ backgroundColor: user.color }}
             >
               {user.name}
