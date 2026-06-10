@@ -1,5 +1,5 @@
 import React from 'react';
-import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
+import { Undo2, Redo2, Share2, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
@@ -10,6 +10,7 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   onExport: () => void;
+  onExportSVG: () => void;
   users: { id: number; name: string; color: string }[];
 }
 
@@ -21,6 +22,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   canUndo,
   canRedo,
   onExport,
+  onExportSVG,
   users
 }) => {
   const getInitials = (name: string) => {
@@ -32,9 +34,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50">
+    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50">
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
+        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200/50 shadow-lg">
           <Activity className="text-white" size={24} />
         </div>
         <div>
@@ -87,13 +89,22 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200 mx-2" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Export to PNG"
-        >
-          <Download size={20} />
-        </button>
+        <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-xl">
+          <button
+            onClick={onExport}
+            className="p-2 px-3 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm transition-all text-xs font-bold"
+            title="Export to PNG"
+          >
+            PNG
+          </button>
+          <button
+            onClick={onExportSVG}
+            className="p-2 px-3 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm transition-all text-xs font-bold"
+            title="Export to SVG"
+          >
+            SVG
+          </button>
+        </div>
 
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
