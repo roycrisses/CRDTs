@@ -21,7 +21,7 @@ export const CursorsLayer: React.FC<CursorsLayerProps> = ({ users }) => {
         return (
           <div
             key={user.id}
-            className="absolute transition-transform duration-75 ease-linear"
+            className="absolute transition-transform duration-100 ease-out"
             style={{
               transform: `translate(${user.cursor.x}px, ${user.cursor.y}px)`,
             }}
@@ -34,7 +34,7 @@ export const CursorsLayer: React.FC<CursorsLayerProps> = ({ users }) => {
               }}
             />
             <div
-              className="ml-4 px-2 py-1 rounded-md text-white text-[10px] font-bold whitespace-nowrap shadow-sm"
+              className="ml-4 px-2 py-1 rounded-md text-white text-[10px] font-bold whitespace-nowrap shadow-md backdrop-blur-sm"
               style={{ backgroundColor: user.color }}
             >
               {user.name}
