@@ -9,7 +9,7 @@ interface TopBarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
+  onExport: (type: 'png' | 'svg') => void;
   users: { id: number; name: string; color: string }[];
 }
 
@@ -87,13 +87,28 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200 mx-2" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Export to PNG"
-        >
-          <Download size={20} />
-        </button>
+        <div className="relative group">
+          <button
+            className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+            title="Export"
+          >
+            <Download size={20} />
+          </button>
+          <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all transform origin-top-right scale-95 group-hover:scale-100 p-1">
+            <button
+              onClick={() => onExport('png')}
+              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+            >
+              Export as PNG
+            </button>
+            <button
+              onClick={() => onExport('svg')}
+              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+            >
+              Export as SVG
+            </button>
+          </div>
+        </div>
 
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
