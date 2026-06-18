@@ -13,6 +13,9 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.2);
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -45,15 +48,18 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+    --glass-bg: rgba(22, 23, 29, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
   }
 }
 
 body {
   margin: 0;
   overflow: hidden;
-  background-color: #f8fafc;
+  background-color: #fcfcfd;
   background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-size: 20px 20px;
 }
 
 canvas {
