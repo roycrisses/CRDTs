@@ -1,11 +1,11 @@
 import React from 'react';
 import { fabric } from 'fabric';
-import { Type, Square } from 'lucide-react';
+import { Type, Square, BringToFront, SendToBack } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface PropertyMenuProps {
   selectedObject: fabric.Object | null;
-  onUpdate: (props: Partial<fabric.IObjectOptions> | { content?: string }) => void;
+  onUpdate: (props: Partial<fabric.ITextOptions> & { content?: string; zAction?: 'front' | 'back' }) => void;
 }
 
 const COLORS = [
@@ -41,7 +41,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
       style={style}
     >
       <div className="flex items-center gap-1 px-1">
-        {COLORS.slice(0, 7).map((color) => (
+        {COLORS.map((color) => (
           <button
             key={color.value}
             onClick={() => onUpdate({ fill: color.value })}
@@ -70,21 +70,76 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
         </button>
 
         {isText && (
-          <button
-            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
-            onClick={() => {
-              if (selectedObject instanceof fabric.IText) {
-                selectedObject.enterEditing();
-              } else if (selectedObject instanceof fabric.Group) {
-                const text = selectedObject.item(1) as unknown as fabric.IText;
-                text.enterEditing();
-              }
-            }}
-            title="Edit Text"
-          >
-            <Type size={18} />
-          </button>
+          <>
+            <button
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+              onClick={() => {
+                if (selectedObject instanceof fabric.IText) {
+                  selectedObject.enterEditing();
+                } else if (selectedObject instanceof fabric.Group) {
+                  const text = selectedObject.item(1) as unknown as fabric.IText;
+                  text.enterEditing();
+                }
+              }}
+              title="Edit Text"
+            >
+              <Type size={18} />
+            </button>
+            <select
+              className="text-xs bg-slate-100 rounded px-1 py-1 focus:outline-none"
+              onChange={(e) => onUpdate({ fontFamily: e.target.value })}
+              value={selectedObject instanceof fabric.IText ? selectedObject.fontFamily : 'Inter'}
+            >
+              <option value="Inter">Inter</option>
+              <option value="Serif">Serif</option>
+              <option value="Monospace">Mono</option>
+              <option value="Comic Sans MS">Comic</option>
+            </select>
+            <select
+              className="text-xs bg-slate-100 rounded px-1 py-1 focus:outline-none"
+              onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })}
+              value={selectedObject instanceof fabric.IText ? selectedObject.fontSize : 24}
+            >
+              {[12, 16, 20, 24, 32, 48, 64].map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </>
         )}
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onUpdate({ zAction: 'front' })}
+            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            title="Bring to Front"
+          >
+            <BringToFront size={18} />
+          </button>
+          <button
+            onClick={() => onUpdate({ zAction: 'back' })}
+            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            title="Send to Back"
+          >
+            <SendToBack size={18} />
+          </button>
+        </div>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <div className="flex items-center gap-2 px-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Opacity</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={selectedObject.opacity || 1}
+            onChange={(e) => onUpdate({ opacity: parseFloat(e.target.value) })}
+            className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
       </div>
     </div>
   );
