@@ -51,9 +51,12 @@
 body {
   margin: 0;
   overflow: hidden;
-  background-color: #f8fafc;
-  background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-color: #fcfcfd;
+  background-image:
+    radial-gradient(#e2e8f0 1px, transparent 1px),
+    linear-gradient(#f1f5f9 1px, transparent 1px),
+    linear-gradient(90deg, #f1f5f9 1px, transparent 1px);
+  background-size: 20px 20px, 100px 100px, 100px 100px;
 }
 
 canvas {
