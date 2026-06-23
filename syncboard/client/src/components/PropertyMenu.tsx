@@ -1,11 +1,11 @@
 import React from 'react';
 import { fabric } from 'fabric';
-import { Type, Square } from 'lucide-react';
+import { Type, Square, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface PropertyMenuProps {
   selectedObject: fabric.Object | null;
-  onUpdate: (props: Partial<fabric.IObjectOptions> | { content?: string }) => void;
+  onUpdate: (props: Partial<fabric.ITextOptions> & { content?: string; zAction?: 'front' | 'back' }) => void;
 }
 
 const COLORS = [
@@ -31,13 +31,16 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
   const style: React.CSSProperties = {
     position: 'fixed',
     left: `${rect.left + rect.width / 2}px`,
-    top: `${rect.top - 60}px`,
+    top: `${rect.top - 70}px`,
     transform: 'translateX(-50%)',
   };
 
+  const fontFamilies = ['Inter', 'Serif', 'Monospace', 'Comic Sans MS'];
+  const fontSizes = [12, 16, 20, 24, 32, 48, 64];
+
   return (
     <div
-      className="flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50 animate-in fade-in zoom-in duration-200"
+      className="flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50 animate-in fade-in zoom-in duration-200"
       style={style}
     >
       <div className="flex items-center gap-1 px-1">
@@ -69,21 +72,70 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
           <Square size={18} />
         </button>
 
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <button
+          onClick={() => onUpdate({ zAction: 'front' })}
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Bring to Front"
+        >
+          <ArrowUp size={18} />
+        </button>
+        <button
+          onClick={() => onUpdate({ zAction: 'back' })}
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Send to Back"
+        >
+          <ArrowDown size={18} />
+        </button>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <div className="flex items-center gap-2 px-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Opacity</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={selectedObject.opacity || 1}
+            onChange={(e) => onUpdate({ opacity: parseFloat(e.target.value) })}
+            className="w-16 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
+
         {isText && (
-          <button
-            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
-            onClick={() => {
-              if (selectedObject instanceof fabric.IText) {
-                selectedObject.enterEditing();
-              } else if (selectedObject instanceof fabric.Group) {
-                const text = selectedObject.item(1) as unknown as fabric.IText;
-                text.enterEditing();
-              }
-            }}
-            title="Edit Text"
-          >
-            <Type size={18} />
-          </button>
+          <>
+            <div className="w-px h-6 bg-slate-200 mx-1" />
+            <select
+              className="text-xs font-semibold text-slate-600 bg-slate-100 border-none rounded-lg px-2 py-1 focus:ring-0 cursor-pointer hover:bg-slate-200 transition-colors"
+              onChange={(e) => onUpdate({ fontFamily: e.target.value })}
+              value={(selectedObject as unknown as fabric.IText).fontFamily || (selectedObject instanceof fabric.Group ? (selectedObject.item(1) as unknown as fabric.IText).fontFamily : 'Inter')}
+            >
+              {fontFamilies.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <select
+              className="text-xs font-semibold text-slate-600 bg-slate-100 border-none rounded-lg px-2 py-1 focus:ring-0 cursor-pointer hover:bg-slate-200 transition-colors"
+              onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })}
+              value={(selectedObject as unknown as fabric.IText).fontSize || (selectedObject instanceof fabric.Group ? (selectedObject.item(1) as unknown as fabric.IText).fontSize : 24)}
+            >
+              {fontSizes.map(s => <option key={s} value={s}>{s}px</option>)}
+            </select>
+            <button
+              className="p-2 text-indigo-600 bg-indigo-50 rounded-lg transition-colors"
+              onClick={() => {
+                if (selectedObject instanceof fabric.IText) {
+                  selectedObject.enterEditing();
+                } else if (selectedObject instanceof fabric.Group) {
+                  const text = selectedObject.item(1) as unknown as fabric.IText;
+                  text.enterEditing();
+                }
+              }}
+              title="Edit Text"
+            >
+              <Type size={18} />
+            </button>
+          </>
         )}
       </div>
     </div>
