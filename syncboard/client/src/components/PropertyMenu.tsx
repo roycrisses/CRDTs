@@ -1,11 +1,11 @@
 import React from 'react';
 import { fabric } from 'fabric';
-import { Type, Square } from 'lucide-react';
+import { Type, Square, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface PropertyMenuProps {
   selectedObject: fabric.Object | null;
-  onUpdate: (props: Partial<fabric.IObjectOptions> | { content?: string }) => void;
+  onUpdate: (props: Partial<fabric.ITextOptions> & { content?: string; zAction?: 'front' | 'back' }) => void;
 }
 
 const COLORS = [
@@ -26,6 +26,13 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
 
   const isText = selectedObject instanceof fabric.IText || (selectedObject instanceof fabric.Group && selectedObject.item(1) instanceof fabric.IText);
   const rect = selectedObject.getBoundingRect();
+
+  const fontFamilies = [
+    { name: 'Sans', value: 'Inter, sans-serif' },
+    { name: 'Serif', value: 'Georgia, serif' },
+    { name: 'Mono', value: 'ui-monospace, monospace' },
+    { name: 'Comic', value: 'Comic Sans MS, cursive' },
+  ];
 
   // Position the menu above the selected object
   const style: React.CSSProperties = {
@@ -68,6 +75,62 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
         >
           <Square size={18} />
         </button>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <button
+          onClick={() => onUpdate({ zAction: 'front' })}
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Bring to Front"
+        >
+          <ArrowUp size={18} />
+        </button>
+        <button
+          onClick={() => onUpdate({ zAction: 'back' })}
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Send to Back"
+        >
+          <ArrowDown size={18} />
+        </button>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <div className="flex items-center gap-2 px-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opacity</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={selectedObject.opacity || 1}
+            onChange={(e) => onUpdate({ opacity: parseFloat(e.target.value) })}
+            className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
+
+        {isText && (
+          <>
+            <div className="w-px h-6 bg-slate-200 mx-1" />
+            <div className="flex items-center gap-1">
+              {fontFamilies.map((font) => (
+                <button
+                  key={font.value}
+                  onClick={() => onUpdate({ fontFamily: font.value })}
+                  className={cn(
+                    "px-2 py-1 text-[10px] font-bold rounded-md transition-colors",
+                    (selectedObject as unknown as { fontFamily?: string }).fontFamily === font.value || (selectedObject instanceof fabric.Group && (selectedObject.item(1) as unknown as { fontFamily?: string }).fontFamily === font.value)
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-500 hover:bg-slate-100"
+                  )}
+                >
+                  {font.name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
 
         {isText && (
           <button
