@@ -5,17 +5,19 @@ import { cn } from '../lib/utils';
 interface TopBarProps {
   status: string;
   roomName: string;
+  setRoomName: (name: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
+  onExport: (format: 'png' | 'svg') => void;
   users: { id: number; name: string; color: string }[];
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   status,
   roomName,
+  setRoomName,
   onUndo,
   onRedo,
   canUndo,
@@ -40,7 +42,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div>
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
           <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              className="text-xs font-medium text-slate-400 capitalize bg-transparent border-none focus:outline-none focus:text-slate-600 w-32"
+            />
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
               status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
@@ -87,13 +94,24 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200 mx-2" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Export to PNG"
-        >
-          <Download size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onExport('png')}
+            className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors flex flex-col items-center group relative"
+            title="Export to PNG"
+          >
+            <Download size={20} />
+            <span className="text-[8px] font-bold mt-0.5">PNG</span>
+          </button>
+          <button
+            onClick={() => onExport('svg')}
+            className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors flex flex-col items-center"
+            title="Export to SVG"
+          >
+            <Download size={20} />
+            <span className="text-[8px] font-bold mt-0.5">SVG</span>
+          </button>
+        </div>
 
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
