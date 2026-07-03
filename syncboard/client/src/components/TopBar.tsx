@@ -1,21 +1,23 @@
 import React from 'react';
-import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
+import { Undo2, Redo2, Share2, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
   status: string;
   roomName: string;
+  setRoomName?: (name: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
+  onExport: (format: 'png' | 'svg') => void;
   users: { id: number; name: string; color: string }[];
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   status,
   roomName,
+  setRoomName,
   onUndo,
   onRedo,
   canUndo,
@@ -32,7 +34,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50">
+    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50">
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
           <Activity className="text-white" size={24} />
@@ -40,7 +42,13 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div>
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
           <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName?.(e.target.value)}
+              className="text-xs font-medium text-slate-400 capitalize bg-transparent border-none focus:ring-0 p-0 w-32 hover:text-slate-600 transition-colors"
+              placeholder="Untitled Room"
+            />
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
               status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
@@ -87,13 +95,22 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200 mx-2" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Export to PNG"
-        >
-          <Download size={20} />
-        </button>
+        <div className="flex items-center bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => onExport('png')}
+            className="px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-white rounded transition-all"
+            title="Export as PNG"
+          >
+            PNG
+          </button>
+          <button
+            onClick={() => onExport('svg')}
+            className="px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-white rounded transition-all"
+            title="Export as SVG"
+          >
+            SVG
+          </button>
+        </div>
 
         <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
           <Share2 size={16} />
