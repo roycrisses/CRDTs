@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 interface TopBarProps {
   status: string;
   roomName: string;
+  setRoomName: (name: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -16,6 +17,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   status,
   roomName,
+  setRoomName,
   onUndo,
   onRedo,
   canUndo,
@@ -32,18 +34,24 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50">
+    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50">
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
+        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200/50 shadow-lg">
           <Activity className="text-white" size={24} />
         </div>
-        <div>
+        <div className="flex flex-col">
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+          <div className="flex items-center gap-2 group">
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              className="text-xs font-semibold text-slate-500 bg-transparent border-none focus:ring-0 p-0 hover:text-indigo-600 transition-colors cursor-edit w-32"
+              placeholder="Untitled Project"
+            />
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
-              status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
+              status === 'connected' ? "bg-emerald-500" : "bg-rose-500 animate-pulse"
             )} />
           </div>
         </div>
