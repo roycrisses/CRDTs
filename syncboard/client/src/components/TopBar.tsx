@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 interface TopBarProps {
   status: string;
   roomName: string;
+  setRoomName: (name: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -16,6 +17,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   status,
   roomName,
+  setRoomName,
   onUndo,
   onRedo,
   canUndo,
@@ -40,7 +42,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div>
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
           <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              className="text-xs font-medium text-slate-400 capitalize bg-transparent border-none focus:ring-0 p-0 w-32"
+            />
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
               status === 'connected' ? "bg-emerald-500" : "bg-rose-500"

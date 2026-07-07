@@ -1,11 +1,11 @@
 import React from 'react';
 import { fabric } from 'fabric';
-import { Type, Square } from 'lucide-react';
+import { Square, ArrowUp, ArrowDown, Type as TypeIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface PropertyMenuProps {
   selectedObject: fabric.Object | null;
-  onUpdate: (props: Partial<fabric.IObjectOptions> | { content?: string }) => void;
+  onUpdate: (props: Partial<fabric.ITextOptions> & { content?: string; zAction?: 'front' | 'back' }) => void;
 }
 
 const COLORS = [
@@ -25,9 +25,15 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
   if (!selectedObject) return null;
 
   const isText = selectedObject instanceof fabric.IText || (selectedObject instanceof fabric.Group && selectedObject.item(1) instanceof fabric.IText);
+
+  const getTargetText = () => {
+    if (selectedObject instanceof fabric.IText) return selectedObject;
+    if (selectedObject instanceof fabric.Group) return selectedObject.item(1) as unknown as fabric.IText;
+    return null;
+  };
+
   const rect = selectedObject.getBoundingRect();
 
-  // Position the menu above the selected object
   const style: React.CSSProperties = {
     position: 'fixed',
     left: `${rect.left + rect.width / 2}px`,
@@ -37,55 +43,112 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
 
   return (
     <div
-      className="flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50 animate-in fade-in zoom-in duration-200"
+      className="flex flex-col gap-2 p-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50 animate-in fade-in zoom-in duration-200"
       style={style}
     >
-      <div className="flex items-center gap-1 px-1">
-        {COLORS.slice(0, 7).map((color) => (
+      <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 px-1">
+          {COLORS.slice(0, 8).map((color) => (
+            <button
+              key={color.value}
+              onClick={() => onUpdate({ fill: color.value })}
+              className="w-5 h-5 rounded-full border border-black/5 hover:scale-110 transition-transform cursor-pointer"
+              style={{ backgroundColor: color.value }}
+              title={color.name}
+            />
+          ))}
+        </div>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <div className="flex items-center gap-1">
           <button
-            key={color.value}
-            onClick={() => onUpdate({ fill: color.value })}
-            className="w-6 h-6 rounded-full border border-black/5 hover:scale-110 transition-transform cursor-pointer"
-            style={{ backgroundColor: color.value }}
-            title={color.name}
-          />
-        ))}
+            onClick={() => onUpdate({ zAction: 'front' })}
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+            title="Bring to Front"
+          >
+            <ArrowUp size={16} />
+          </button>
+          <button
+            onClick={() => onUpdate({ zAction: 'back' })}
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+            title="Send to Back"
+          >
+            <ArrowDown size={16} />
+          </button>
+        </div>
       </div>
 
-      <div className="w-px h-6 bg-slate-200 mx-1" />
+      <div className="h-px bg-slate-200/50 mx-1" />
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2 px-1">
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opacity</span>
+          <input
+            type="range"
+            min="0.1"
+            max="1"
+            step="0.1"
+            value={selectedObject.opacity || 1}
+            onChange={(e) => onUpdate({ opacity: parseFloat(e.target.value) })}
+            className="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
         <button
           onClick={() => {
             const currentStroke = selectedObject.strokeWidth || 0;
             onUpdate({ strokeWidth: currentStroke === 0 ? 2 : 0, stroke: selectedObject.fill as string });
           }}
           className={cn(
-            "p-2 rounded-lg transition-colors",
+            "p-1.5 rounded-lg transition-colors",
             selectedObject.strokeWidth ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-100"
           )}
           title="Toggle Stroke"
         >
-          <Square size={18} />
+          <Square size={16} />
         </button>
 
         {isText && (
           <button
-            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
-            onClick={() => {
-              if (selectedObject instanceof fabric.IText) {
-                selectedObject.enterEditing();
-              } else if (selectedObject instanceof fabric.Group) {
-                const text = selectedObject.item(1) as unknown as fabric.IText;
-                text.enterEditing();
-              }
-            }}
+            className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            onClick={() => getTargetText()?.enterEditing()}
             title="Edit Text"
           >
-            <Type size={18} />
+            <TypeIcon size={16} />
           </button>
         )}
       </div>
+
+      {isText && (
+        <>
+          <div className="h-px bg-slate-200/50 mx-1" />
+          <div className="flex items-center gap-2 px-1">
+            <select
+              value={getTargetText()?.fontFamily || 'Inter, sans-serif'}
+              onChange={(e) => onUpdate({ fontFamily: e.target.value })}
+              className="text-[11px] font-medium text-slate-600 bg-slate-50 border-slate-200 rounded-md px-2 py-1 outline-none"
+            >
+              <option value="Inter, sans-serif">Inter</option>
+              <option value="serif">Serif</option>
+              <option value="monospace">Monospace</option>
+              <option value="Comic Sans MS">Comic Sans</option>
+            </select>
+
+            <select
+              value={getTargetText()?.fontSize || 24}
+              onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })}
+              className="text-[11px] font-medium text-slate-600 bg-slate-50 border-slate-200 rounded-md px-2 py-1 outline-none"
+            >
+              {[12, 14, 16, 18, 24, 32, 48, 64].map(size => (
+                <option key={size} value={size}>{size}px</option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
     </div>
   );
 };
