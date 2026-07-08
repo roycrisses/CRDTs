@@ -1,21 +1,23 @@
-import React from 'react';
-import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Undo2, Redo2, Share2, Activity, Download, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
   status: string;
   roomName: string;
+  onRoomNameChange: (name: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
+  onExport: (format: 'png' | 'svg') => void;
   users: { id: number; name: string; color: string }[];
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   status,
   roomName,
+  onRoomNameChange,
   onUndo,
   onRedo,
   canUndo,
@@ -23,6 +25,36 @@ export const TopBar: React.FC<TopBarProps> = ({
   onExport,
   users
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempRoomName, setTempRoomName] = useState(roomName);
+
+  useEffect(() => {
+    setTempRoomName(roomName);
+  }, [roomName]);
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    if (tempRoomName.trim()) {
+      onRoomNameChange(tempRoomName);
+    } else {
+      setTempRoomName(roomName);
+    }
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert('Room URL copied to clipboard!');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleBlur();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setTempRoomName(roomName);
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -32,18 +64,32 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50">
+    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50">
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
+        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg transition-transform hover:scale-105">
           <Activity className="text-white" size={24} />
         </div>
-        <div>
+        <div className="flex flex-col">
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+          <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setIsEditing(true)}>
+            {isEditing ? (
+              <input
+                autoFocus
+                className="text-xs font-semibold text-indigo-600 outline-none bg-transparent border-b border-indigo-600 min-w-[100px]"
+                value={tempRoomName}
+                onChange={(e) => setTempRoomName(e.target.value)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+              />
+            ) : (
+              <>
+                <p className="text-xs font-semibold text-slate-500 group-hover:text-indigo-600 transition-colors uppercase tracking-wider">{roomName}</p>
+                <ChevronDown size={12} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </>
+            )}
             <div className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
+              "w-1.5 h-1.5 rounded-full ring-4 ring-white shadow-sm",
+              status === 'connected' ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
             )} />
           </div>
         </div>
@@ -87,15 +133,33 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200 mx-2" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Export to PNG"
-        >
-          <Download size={20} />
-        </button>
+        <div className="relative group/export">
+          <button
+            className="p-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+            title="Export"
+          >
+            <Download size={20} />
+          </button>
+          <div className="absolute right-0 top-full mt-2 w-32 bg-white rounded-xl shadow-xl border border-slate-100 py-1 opacity-0 pointer-events-none group-hover/export:opacity-100 group-hover/export:pointer-events-auto transition-all z-50">
+            <button
+              onClick={() => onExport('png')}
+              className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Export PNG
+            </button>
+            <button
+              onClick={() => onExport('svg')}
+              className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Export SVG
+            </button>
+          </div>
+        </div>
 
-        <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
+        <button
+          onClick={handleShare}
+          className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95"
+        >
           <Share2 size={16} />
           Share
         </button>
