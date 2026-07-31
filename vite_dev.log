@@ -1,0 +1,11 @@
+
+> client@0.0.0 dev
+> vite
+
+
+  VITE v8.0.8  ready in 412 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+6:38:40 AM [vite] (client) hmr update /src/CanvasApp.tsx, /src/index.css
+6:39:44 AM [vite] (client) hmr update /src/CanvasApp.tsx, /src/index.css
