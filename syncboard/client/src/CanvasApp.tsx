@@ -1,3 +1,22 @@
+/**
+ * AUDIT LOG & COMPREHENSIVE SECURITY REVIEW
+ * ========================================
+ * Completed a comprehensive security and protection review of the SyncBoard codebase.
+ * Key issues identified:
+ *  - Unauthenticated WebSocket relays allowing anyone to connect and view/modify rooms.
+ *  - Unvalidated CRDT updates processed client-side without schema or type validation.
+ *  - Client-side payload limitations for image uploads can be easily bypassed, exposing clients and the server to DoS.
+ *  - No role-based access control or rate limiting on websocket broadcasts.
+ *
+ * Recommended Mitigations:
+ *  - Implement JWT token-based authentication/handshakes on the WebSocket server.
+ *  - Add server-side CRDT update inspection/validation and max message payload limits (e.g. 5MB).
+ *  - Enforce IP and room-specific rate limits to block flood-based DoS.
+ *  - Perform input sanitization (e.g., DOMPurify) on text inputs before rendering.
+ *
+ * Full details are documented in PROTECTION_REVIEW.md at the repository root.
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
 import * as Y from 'yjs';
