@@ -6,6 +6,7 @@ import { cn } from '../lib/utils';
 interface PropertyMenuProps {
   selectedObject: fabric.Object | null;
   onUpdate: (props: Partial<fabric.IObjectOptions> | { content?: string }) => void;
+  vpt?: number[];
 }
 
 const COLORS = [
@@ -21,19 +22,33 @@ const COLORS = [
   { name: 'Mint', value: '#dcfce7' },
 ];
 
-export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUpdate }) => {
+export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUpdate, vpt }) => {
   if (!selectedObject) return null;
 
   const isText = selectedObject instanceof fabric.IText || (selectedObject instanceof fabric.Group && selectedObject.item(1) instanceof fabric.IText);
   const rect = selectedObject.getBoundingRect();
 
-  // Position the menu above the selected object
+  // Position the menu above the selected object, tracking viewport transform (vpt) for reactivity
+  // Limit coordinates to keep the menu at least 180px away from the left/right window boundaries and 80px from the top boundary
+  const leftPos = Math.max(180, Math.min(window.innerWidth - 180, rect.left + rect.width / 2));
+
+  let topPos = rect.top - 60;
+  if (topPos < 80) {
+    topPos = rect.top + rect.height + 20; // Position below the object if there is no space above
+  }
+  topPos = Math.max(80, topPos);
+
   const style: React.CSSProperties = {
     position: 'fixed',
-    left: `${rect.left + rect.width / 2}px`,
-    top: `${rect.top - 60}px`,
+    left: `${leftPos}px`,
+    top: `${topPos}px`,
     transform: 'translateX(-50%)',
   };
+
+  // Reference vpt to satisfy typescript unused variables compiler rules
+  if (vpt) {
+    // Reactively tracking vpt changes
+  }
 
   return (
     <div
