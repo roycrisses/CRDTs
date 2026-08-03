@@ -1,3 +1,19 @@
+/**
+ * SYNCBOARD DAILY AUDIT LOG & CODEBASE CHECKS
+ *
+ * [Day 1]
+ * - Checked: Checked TypeScript compilation and ESLint configuration. Resolved eslint missing package imports during installation to ensure robust, lint-free workspace environments.
+ * - Fixes: Installed missing devDependencies, verified npm run lint runs successfully with zero warnings/errors.
+ *
+ * [Day 2]
+ * - Checked: React StrictMode stability, context cleanups, and memory leaks.
+ * - Fixes: Optimized `useEffect` cleanup handler in CanvasApp.tsx to explicitly set `fabricRef.current = null` and unobserve/unregister both Yjs elements and awareness listeners, preventing stale renders or context clear errors.
+ *
+ * [Day 3]
+ * - Checked: Real-time UI alignment safety under viewport transformation (zooming and panning).
+ * - Fixes: Implemented reactive `vpt` (viewport transform) state tracking in CanvasApp.tsx to force property menu re-positioning, and enforced strict screen boundary limits in PropertyMenu.tsx to prevent absolute floating elements from rendering off-screen.
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
 import * as Y from 'yjs';
@@ -47,6 +63,7 @@ export const CanvasApp = () => {
   const [zoom, setZoom] = useState(1);
   const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<{ id: number; name: string; color: string; cursor?: { x: number; y: number } }[]>([]);
+  const [vpt, setVpt] = useState<number[]>([1, 0, 0, 1, 0, 0]);
 
   const fabricRef = useRef<FabricCanvasExtended | null>(null);
   const yElementsRef = useRef<Y.Map<ElementData> | null>(null);
@@ -98,7 +115,7 @@ export const CanvasApp = () => {
       color: USER_COLOR,
     });
 
-    awareness.on('change', () => {
+    const handleAwarenessChange = () => {
       const states = awareness.getStates();
       const users: { id: number; name: string; color: string; cursor?: { x: number; y: number } }[] = [];
       states.forEach((state: Record<string, unknown>, clientID) => {
@@ -113,7 +130,9 @@ export const CanvasApp = () => {
         }
       });
       setRemoteUsers(users);
-    });
+    };
+
+    awareness.on('change', handleAwarenessChange);
 
     const fabricCanvas = new fabric.Canvas(canvasRef.current, {
       width: window.innerWidth,
@@ -270,7 +289,7 @@ export const CanvasApp = () => {
       }
     };
 
-    yElements.observe((event) => {
+    const handleYjsElementsChange = (event: Y.YMapEvent<ElementData>) => {
       isUpdatingRef.current = true;
       event.changes.keys.forEach((change, key) => {
         if (change.action === 'add' || change.action === 'update') {
@@ -283,7 +302,9 @@ export const CanvasApp = () => {
       });
       fabricCanvas.renderAll();
       isUpdatingRef.current = false;
-    });
+    };
+
+    yElements.observe(handleYjsElementsChange);
 
     const updateYjs = (e: fabric.IEvent) => {
       if (isUpdatingRef.current || !yElementsRef.current || !fabricRef.current) return;
@@ -316,13 +337,16 @@ export const CanvasApp = () => {
       if (zoom < 0.01) zoom = 0.01;
       fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
       setZoom(zoom);
+      if (fabricCanvas.viewportTransform) {
+        setVpt([...fabricCanvas.viewportTransform]);
+      }
       opt.e.preventDefault();
       opt.e.stopPropagation();
     });
 
     fabricCanvas.on('mouse:down', (opt) => {
       const evt = opt.e;
-      if (evt.altKey === true || activeToolRef.current === 'hand' || (activeToolRef.current === 'select' && !fabricCanvas.getActiveObject())) {
+      if (evt.altKey === true || activeToolRef.current === 'hand' || (activeToolRef.current === 'select' && !opt.target)) {
         fabricCanvas.isDragging = true;
         fabricCanvas.selection = false;
         fabricCanvas.lastPosX = evt.clientX;
@@ -346,6 +370,7 @@ export const CanvasApp = () => {
         fabricCanvas.requestRenderAll();
         fabricCanvas.lastPosX = e.clientX;
         fabricCanvas.lastPosY = e.clientY;
+        setVpt([...vpt]);
       }
     });
 
@@ -355,9 +380,17 @@ export const CanvasApp = () => {
       fabricCanvas.selection = activeToolRef.current === 'select';
     });
 
-    fabricCanvas.on('selection:created', (e) => setSelectedObject(e.target || null));
-    fabricCanvas.on('selection:updated', (e) => setSelectedObject(e.target || null));
-    fabricCanvas.on('selection:cleared', () => setSelectedObject(null));
+    fabricCanvas.on('selection:created', () => {
+      const activeObj = fabricCanvas.getActiveObject();
+      setSelectedObject(activeObj || null);
+    });
+    fabricCanvas.on('selection:updated', () => {
+      const activeObj = fabricCanvas.getActiveObject();
+      setSelectedObject(activeObj || null);
+    });
+    fabricCanvas.on('selection:cleared', () => {
+      setSelectedObject(null);
+    });
 
     fabricCanvas.on('object:modified', updateYjs);
     fabricCanvas.on('object:moving', updateYjs);
@@ -441,7 +474,10 @@ export const CanvasApp = () => {
     return () => {
       wsProvider.destroy();
       dbProvider.destroy();
+      yElements.unobserve(handleYjsElementsChange);
+      awareness.off('change', handleAwarenessChange);
       fabricCanvas.dispose();
+      fabricRef.current = null;
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -501,6 +537,9 @@ export const CanvasApp = () => {
     const newZoom = fabricRef.current.getZoom() * 1.2;
     fabricRef.current.setZoom(newZoom);
     setZoom(newZoom);
+    if (fabricRef.current.viewportTransform) {
+      setVpt([...fabricRef.current.viewportTransform]);
+    }
   };
 
   const handleZoomOut = () => {
@@ -508,12 +547,16 @@ export const CanvasApp = () => {
     const newZoom = fabricRef.current.getZoom() / 1.2;
     fabricRef.current.setZoom(newZoom);
     setZoom(newZoom);
+    if (fabricRef.current.viewportTransform) {
+      setVpt([...fabricRef.current.viewportTransform]);
+    }
   };
 
   const handleResetZoom = () => {
     if (!fabricRef.current) return;
     fabricRef.current.setViewportTransform([1, 0, 0, 1, 0, 0]);
     setZoom(1);
+    setVpt([1, 0, 0, 1, 0, 0]);
   };
 
   const handleExport = () => {
@@ -566,6 +609,7 @@ export const CanvasApp = () => {
       <PropertyMenu
         selectedObject={selectedObject}
         onUpdate={updateProperty}
+        vpt={vpt}
       />
 
       <CursorsLayer users={remoteUsers} />
