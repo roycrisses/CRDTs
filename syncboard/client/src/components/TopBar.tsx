@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
+
+const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
 
 interface TopBarProps {
   status: string;
@@ -11,6 +13,10 @@ interface TopBarProps {
   canRedo: boolean;
   onExport: () => void;
   users: { id: number; name: string; color: string }[];
+  localName: string;
+  localColor: string;
+  onUpdateLocalName: (name: string) => void;
+  onUpdateLocalColor: (color: string) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -21,18 +27,26 @@ export const TopBar: React.FC<TopBarProps> = ({
   canUndo,
   canRedo,
   onExport,
-  users
+  users,
+  localName,
+  localColor,
+  onUpdateLocalName,
+  onUpdateLocalColor,
 }) => {
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name
       .split(' ')
       .map((n) => n[0])
       .join('')
-      .toUpperCase();
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
-    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50">
+    <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50">
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
           <Activity className="text-white" size={24} />
@@ -47,6 +61,40 @@ export const TopBar: React.FC<TopBarProps> = ({
             )} />
           </div>
         </div>
+      </div>
+
+      {/* User profile personalization input */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200/60 rounded-xl max-w-[200px]">
+        <div className="relative">
+          <button
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            className="w-6 h-6 rounded-full border border-black/10 hover:scale-110 transition-transform cursor-pointer"
+            style={{ backgroundColor: localColor }}
+            title="Change your color"
+          />
+          {showColorPicker && (
+            <div className="absolute top-8 left-0 flex gap-1.5 p-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => {
+                    onUpdateLocalColor(c);
+                    setShowColorPicker(false);
+                  }}
+                  className="w-5 h-5 rounded-full border border-black/5 hover:scale-110 transition-transform cursor-pointer"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <input
+          type="text"
+          value={localName}
+          onChange={(e) => onUpdateLocalName(e.target.value)}
+          className="bg-transparent font-medium text-xs text-slate-700 w-24 focus:outline-none border-b border-transparent hover:border-slate-300 focus:border-indigo-500 transition-colors"
+          placeholder="Your name"
+        />
       </div>
 
       <div className="flex items-center gap-2">
