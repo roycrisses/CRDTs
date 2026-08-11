@@ -10,6 +10,7 @@ interface RemoteUser {
 
 interface CursorsLayerProps {
   users: RemoteUser[];
+  vpt?: number[];
 }
 
 export const CursorsLayer: React.FC<CursorsLayerProps> = ({ users }) => {
