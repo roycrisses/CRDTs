@@ -1,11 +1,12 @@
 import React from 'react';
 import { fabric } from 'fabric';
-import { Type, Square } from 'lucide-react';
+import { Type, Square, ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface PropertyMenuProps {
   selectedObject: fabric.Object | null;
-  onUpdate: (props: Partial<fabric.IObjectOptions> | { content?: string }) => void;
+  onUpdate: (props: Partial<fabric.IObjectOptions> & { content?: string; zAction?: 'front' | 'back' }) => void;
+  propertyMenuRect: { left: number; top: number; width: number; height: number } | null;
 }
 
 const COLORS = [
@@ -21,23 +22,25 @@ const COLORS = [
   { name: 'Mint', value: '#dcfce7' },
 ];
 
-export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUpdate }) => {
-  if (!selectedObject) return null;
+export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUpdate, propertyMenuRect }) => {
+  if (!selectedObject || !propertyMenuRect) return null;
 
   const isText = selectedObject instanceof fabric.IText || (selectedObject instanceof fabric.Group && selectedObject.item(1) instanceof fabric.IText);
-  const rect = selectedObject.getBoundingRect();
 
-  // Position the menu above the selected object
+  // Calculate responsive/safe coordinates bounded by browser window dimensions
+  const menuLeft = Math.min(Math.max(180, propertyMenuRect.left + propertyMenuRect.width / 2), window.innerWidth - 180);
+  const menuTop = Math.max(80, propertyMenuRect.top - 60);
+
   const style: React.CSSProperties = {
     position: 'fixed',
-    left: `${rect.left + rect.width / 2}px`,
-    top: `${rect.top - 60}px`,
+    left: `${menuLeft}px`,
+    top: `${menuTop}px`,
     transform: 'translateX(-50%)',
   };
 
   return (
     <div
-      className="flex items-center gap-1 p-1.5 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-50 animate-in fade-in zoom-in duration-200"
+      className="flex items-center gap-1 p-1.5 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50 animate-in fade-in zoom-in duration-200"
       style={style}
     >
       <div className="flex items-center gap-1 px-1">
@@ -85,6 +88,24 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({ selectedObject, onUp
             <Type size={18} />
           </button>
         )}
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        {/* Bring to Front & Send to Back Layer Sorting Buttons */}
+        <button
+          onClick={() => onUpdate({ zAction: 'front' })}
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Bring to Front"
+        >
+          <ChevronUp size={18} />
+        </button>
+        <button
+          onClick={() => onUpdate({ zAction: 'back' })}
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Send to Back"
+        >
+          <ChevronDown size={18} />
+        </button>
       </div>
     </div>
   );
