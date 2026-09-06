@@ -1,3 +1,13 @@
+/**
+ * SyncBoard Client Canvas Component
+ *
+ * Audit Log / Protection Review:
+ * - Conducted comprehensive security & protection audit of SyncBoard codebase.
+ * - Identified architectural risks including unauthenticated WebSocket relay connections,
+ *   unvalidated CRDT payloads, missing origin checks, and unencrypted transport/storage.
+ * - Full assessment report documented in PROTECTION_REVIEW.md at repository root.
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
 import * as Y from 'yjs';
