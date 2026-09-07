@@ -1,10 +1,11 @@
-import React from 'react';
-import { Undo2, Redo2, Share2, Activity, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TopBarProps {
   status: string;
   roomName: string;
+  onRoomNameChange?: (name: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -16,6 +17,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   status,
   roomName,
+  onRoomNameChange,
   onUndo,
   onRedo,
   canUndo,
@@ -23,12 +25,29 @@ export const TopBar: React.FC<TopBarProps> = ({
   onExport,
   users
 }) => {
+  const [copied, setCopied] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(roomName);
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
       .map((n) => n[0])
       .join('')
       .toUpperCase();
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveRoomName = () => {
+    setIsEditingName(false);
+    if (onRoomNameChange && tempName.trim()) {
+      onRoomNameChange(tempName.trim());
+    }
   };
 
   return (
@@ -40,7 +59,34 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div>
           <h1 className="text-lg font-bold text-slate-900 leading-tight">SyncBoard</h1>
           <div className="flex items-center gap-2">
-            <p className="text-xs font-medium text-slate-400 capitalize">{roomName}</p>
+            {isEditingName ? (
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onBlur={handleSaveRoomName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveRoomName();
+                }}
+                className="text-xs font-medium text-slate-700 bg-slate-100 rounded px-1 py-0.5 outline-none border border-indigo-300"
+                autoFocus
+              />
+            ) : (
+              <div
+                onClick={() => {
+                  setTempName(roomName);
+                  setIsEditingName(true);
+                }}
+                className="flex items-center gap-1 group cursor-pointer"
+                title="Click to edit room name"
+              >
+                <p className="text-xs font-medium text-slate-500 group-hover:text-indigo-600 transition-colors">
+                  {roomName}
+                </p>
+                <Edit2 size={10} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </div>
+            )}
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
               status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
@@ -95,9 +141,15 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Download size={20} />
         </button>
 
-        <button className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-100 active:scale-95">
-          <Share2 size={16} />
-          Share
+        <button
+          onClick={handleShare}
+          className={cn(
+            "ml-2 px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95 text-white",
+            copied ? "bg-emerald-600 shadow-emerald-100" : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100"
+          )}
+        >
+          {copied ? <Check size={16} /> : <Share2 size={16} />}
+          {copied ? 'Copied!' : 'Share'}
         </button>
       </div>
     </div>
