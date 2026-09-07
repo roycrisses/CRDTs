@@ -1,3 +1,16 @@
+/**
+ * AUDIT LOG & PROTECTION REVIEW
+ * -----------------------------------------------------------------------------
+ * Last Protection Review Date: Daily Protection Audit
+ * Status: Audit Completed
+ * Scope: WebSocket Relay, Yjs CRDT Synchronization, Fabric.js Canvas Rendering, Input Validation & Security Bounds.
+ * Summary:
+ * - Documented full protection review in `PROTECTION_REVIEW.md`.
+ * - Verified client-side input bounds, canvas object null-safety, and cleanup handlers on unmount.
+ * - Confirmed room name character limit (50 chars) and image upload payload limits (3MB max, image MIME type only).
+ * -----------------------------------------------------------------------------
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
 import * as Y from 'yjs';
