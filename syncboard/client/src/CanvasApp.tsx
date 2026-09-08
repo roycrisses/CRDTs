@@ -1,3 +1,21 @@
+/**
+ * SyncBoard Client Application & Protection Review Audit Log
+ *
+ * Audit Date: Current Cycle
+ * Review Scope: Real-time Canvas Rendering, Yjs CRDT State Management, Security Constraints
+ *
+ * Findings & Protections:
+ * 1. Websocket Relay & Protocol Security:
+ *    - Unauthenticated WS connection to relay server (ws://localhost:1234).
+ *    - Production recommendation: Upgrade to wss:// with JWT authentication and Origin header validation.
+ * 2. CRDT Payload Integrity:
+ *    - Client handles incoming Yjs Y.Map ('elements') events.
+ *    - Structural updates mapped to Fabric.js instances in `upsertFabricObject`.
+ * 3. Client Resource Protection:
+ *    - Keyboard events, viewport transformations, and tool switching guarded to prevent crashes.
+ *    - Local IndexedDB persistence via IndexeddbPersistence ('syncboard-v2').
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
 import * as Y from 'yjs';
