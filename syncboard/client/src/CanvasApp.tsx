@@ -2,6 +2,8 @@
  * Daily Audit & Fixes Log:
  * Date: 2026-09-09
  * Checks Performed:
+ * - Conducted security and protection review of SyncBoard architecture, WebSocket relay server, CRDT updates, and client payload limits.
+ * - Documented structural findings (unauthenticated WebSocket relays, unvalidated CRDT updates, CSWSH risks, DoS vectors) in `PROTECTION_REVIEW.md`.
  * - Verified client production build (`npm run build`) and TypeScript compilation.
  * - Verified ESLint code style and syntax checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
