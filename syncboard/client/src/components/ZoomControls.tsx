@@ -15,7 +15,7 @@ export const ZoomControls: React.FC<ZoomControlsProps> = ({
   onReset,
 }) => {
   return (
-    <div className="fixed bottom-6 left-6 flex items-center gap-1 p-1 bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl border border-white/20 z-50">
+    <div className="fixed bottom-6 left-20 flex items-center gap-1 p-1 bg-white/80 backdrop-blur-xl rounded-xl shadow-2xl border border-white/20 z-50">
       <button
         onClick={onZoomOut}
         className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
