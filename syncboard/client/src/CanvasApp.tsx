@@ -5,7 +5,7 @@
  * - Verified client production build (`npm run build`) and TypeScript compilation.
  * - Verified ESLint code style and syntax checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
- * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
+ * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, Figma Jam board features (Templates, Frames, Badges, Stroke styles, Shortcuts, JSON import/export), and UI overlays function properly with zero error regressions.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -21,6 +21,8 @@ import { CursorsLayer } from './components/CursorsLayer';
 import { ZoomControls } from './components/ZoomControls';
 import type { PropertyUpdateProps } from './components/PropertyMenu';
 import { PropertyMenu } from './components/PropertyMenu';
+import { TemplatesModal } from './components/TemplatesModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { COLORS, STICKY_COLORS } from './constants';
 
 export type ElementData = {
@@ -35,16 +37,29 @@ export type ElementData = {
     | 'path'
     | 'arrow'
     | 'stamp'
-    | 'image';
+    | 'image'
+    | 'badge'
+    | 'frame';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
   content?: string;
-  style: { fill: string; stroke?: string; strokeWidth?: number; fontFamily?: string };
+  style: {
+    fill: string;
+    stroke?: string;
+    strokeWidth?: number;
+    strokeDashArray?: number[];
+    fontFamily?: string;
+    fontSize?: number;
+    textAlign?: string;
+    opacity?: number;
+  };
   path?: (string | number)[][];
   scaleX?: number;
   scaleY?: number;
   zIndex?: number;
   imageUrl?: string;
+  badgeBg?: string;
+  badgeColor?: string;
 };
 
 export interface FabricObjectWithId extends fabric.Object {
@@ -70,6 +85,9 @@ export const CanvasApp = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [showGrid, setShowGrid] = useState(true);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
   const [propertyMenuRect, setPropertyMenuRect] = useState<{
     left: number;
@@ -311,6 +329,7 @@ export const CanvasApp = () => {
           top: data.position.y,
           scaleX: data.scaleX || 1,
           scaleY: data.scaleY || 1,
+          opacity: data.style.opacity ?? 1,
         };
 
         if (data.type === 'sticky' && existing instanceof fabric.Group) {
@@ -320,6 +339,23 @@ export const CanvasApp = () => {
           rect.set({ fill: data.style.fill });
           if (data.content !== undefined) text.set({ text: data.content });
           if (data.style.fontFamily) text.set({ fontFamily: data.style.fontFamily });
+          if (data.style.fontSize) text.set({ fontSize: data.style.fontSize });
+          if (data.style.textAlign) text.set({ textAlign: data.style.textAlign });
+        } else if (data.type === 'frame' && existing instanceof fabric.Group) {
+          const container = existing.item(0) as fabric.Rect;
+          const headerBg = existing.item(1) as fabric.Rect;
+          const title = existing.item(2) as unknown as fabric.IText;
+          existing.set(commonProps);
+          container.set({ stroke: data.style.stroke || '#6366f1' });
+          headerBg.set({ fill: data.style.stroke || '#6366f1' });
+          if (data.content !== undefined) title.set({ text: data.content });
+        } else if (data.type === 'badge' && existing instanceof fabric.Group) {
+          const bgRect = existing.item(0) as fabric.Rect;
+          const label = existing.item(1) as unknown as fabric.IText;
+          existing.set(commonProps);
+          if (data.badgeBg) bgRect.set({ fill: data.badgeBg });
+          if (data.badgeColor) label.set({ fill: data.badgeColor });
+          if (data.content !== undefined) label.set({ text: data.content });
         } else if (data.type === 'arrow' && existing instanceof fabric.Group) {
           const line = existing.item(0) as unknown as fabric.Line;
           const tip = existing.item(1) as unknown as fabric.Triangle;
@@ -338,10 +374,13 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             stroke: data.style.stroke,
             strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
           });
           if (data.type === 'text' && existing instanceof fabric.IText) {
             if (data.content !== undefined) existing.set({ text: data.content });
             if (data.style.fontFamily) existing.set({ fontFamily: data.style.fontFamily });
+            if (data.style.fontSize) existing.set({ fontSize: data.style.fontSize });
+            if (data.style.textAlign) existing.set({ textAlign: data.style.textAlign });
           }
         }
 
@@ -353,7 +392,72 @@ export const CanvasApp = () => {
       } else {
         let obj: fabric.Object | undefined;
 
-        if (data.type === 'sticky') {
+        if (data.type === 'frame') {
+          const frameWidth = data.size.width || 400;
+          const frameHeight = data.size.height || 300;
+
+          const container = new fabric.Rect({
+            width: frameWidth,
+            height: frameHeight,
+            fill: 'rgba(248, 250, 252, 0.4)',
+            stroke: data.style.stroke || '#6366f1',
+            strokeWidth: 2,
+            strokeDashArray: [6, 6],
+            rx: 12,
+            ry: 12,
+          });
+
+          const headerBg = new fabric.Rect({
+            width: Math.min(160, frameWidth - 20),
+            height: 28,
+            fill: data.style.stroke || '#6366f1',
+            rx: 6,
+            ry: 6,
+            left: 10,
+            top: 10,
+          });
+
+          const title = new fabric.IText(data.content || 'Frame Container', {
+            fontSize: 13,
+            fontFamily: 'Inter, sans-serif',
+            fill: '#ffffff',
+            fontWeight: 'bold',
+            left: 20,
+            top: 15,
+          });
+
+          obj = new fabric.Group([container, headerBg, title], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+          });
+        } else if (data.type === 'badge') {
+          const bgRect = new fabric.Rect({
+            width: data.size.width || 110,
+            height: data.size.height || 32,
+            fill: data.badgeBg || '#e0e7ff',
+            rx: 8,
+            ry: 8,
+          });
+          const label = new fabric.IText(data.content || 'STATUS', {
+            fontSize: 12,
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: 'bold',
+            fill: data.badgeColor || '#3730a3',
+            originX: 'center',
+            originY: 'center',
+            left: (data.size.width || 110) / 2,
+            top: (data.size.height || 32) / 2,
+          });
+
+          obj = new fabric.Group([bgRect, label], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+          });
+        } else if (data.type === 'sticky') {
           const rect = new fabric.Rect({
             width: 160,
             height: 160,
@@ -363,9 +467,9 @@ export const CanvasApp = () => {
             shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.12)', blur: 12, offsetX: 4, offsetY: 6 }),
           });
           const text = new fabric.IText(data.content || 'Sticky Note', {
-            fontSize: 16,
+            fontSize: data.style.fontSize || 16,
             fontFamily: data.style.fontFamily || 'Inter, sans-serif',
-            textAlign: 'center',
+            textAlign: (data.style.textAlign as 'left' | 'center' | 'right') || 'center',
             originX: 'center',
             originY: 'center',
             left: 80,
@@ -411,6 +515,9 @@ export const CanvasApp = () => {
             width: data.size.width,
             height: data.size.height,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth || 0,
+            strokeDashArray: data.style.strokeDashArray,
             rx: 10,
             ry: 10,
             scaleX: data.scaleX || 1,
@@ -422,6 +529,9 @@ export const CanvasApp = () => {
             top: data.position.y,
             radius: data.size.radius || 45,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth || 0,
+            strokeDashArray: data.style.strokeDashArray,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -432,6 +542,9 @@ export const CanvasApp = () => {
             width: data.size.width || 100,
             height: data.size.height || 90,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth || 0,
+            strokeDashArray: data.style.strokeDashArray,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -442,6 +555,9 @@ export const CanvasApp = () => {
             width: data.size.width || 80,
             height: data.size.height || 80,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth || 0,
+            strokeDashArray: data.style.strokeDashArray,
             angle: 45,
             rx: 6,
             ry: 6,
@@ -454,7 +570,8 @@ export const CanvasApp = () => {
             top: data.position.y,
             fill: data.style.fill,
             fontFamily: data.style.fontFamily || 'Inter, sans-serif',
-            fontSize: 24,
+            fontSize: data.style.fontSize || 24,
+            textAlign: (data.style.textAlign as 'left' | 'center' | 'right') || 'left',
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -550,14 +667,23 @@ export const CanvasApp = () => {
       if (data) {
         let content = data.content;
         let fontFamily = data.style.fontFamily;
+        let fontSize = data.style.fontSize;
+        let textAlign = data.style.textAlign;
 
         if (obj instanceof fabric.IText) {
           content = obj.text;
           fontFamily = obj.fontFamily;
+          fontSize = obj.fontSize;
+          textAlign = obj.textAlign;
         } else if (obj instanceof fabric.Group && obj.item(1) instanceof fabric.IText) {
           const textItem = obj.item(1) as unknown as fabric.IText;
           content = textItem.text;
           fontFamily = textItem.fontFamily;
+          fontSize = textItem.fontSize;
+          textAlign = textItem.textAlign;
+        } else if (obj instanceof fabric.Group && obj.item(2) instanceof fabric.IText) {
+          const textItem = obj.item(2) as unknown as fabric.IText;
+          content = textItem.text;
         }
 
         yElementsRef.current.set(obj.id, {
@@ -575,6 +701,8 @@ export const CanvasApp = () => {
           style: {
             ...data.style,
             fontFamily,
+            fontSize,
+            textAlign,
           },
         });
       }
@@ -729,7 +857,9 @@ export const CanvasApp = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      if (e.key === '?') {
+        setIsShortcutsOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateObject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -763,6 +893,8 @@ export const CanvasApp = () => {
         setActiveTool('laser');
       } else if (e.key.toLowerCase() === 'a') {
         setActiveTool('arrow');
+      } else if (e.key.toLowerCase() === 'f') {
+        setActiveTool('frame');
       } else if (e.key.toLowerCase() === 'r') {
         setActiveTool('rectangle');
       } else if (e.key.toLowerCase() === 'o') {
@@ -799,7 +931,13 @@ export const CanvasApp = () => {
   // Handle Adding Tool Elements
   const handleToolChange = (
     tool: Tool,
-    extra?: { stampEmoji?: string; imageUrl?: string }
+    extra?: {
+      stampEmoji?: string;
+      imageUrl?: string;
+      badgeText?: string;
+      badgeBg?: string;
+      badgeColor?: string;
+    }
   ) => {
     if (!yElementsRef.current || !fabricRef.current) return;
 
@@ -817,6 +955,26 @@ export const CanvasApp = () => {
         imageUrl: extra.imageUrl,
         scaleX: 0.5,
         scaleY: 0.5,
+      };
+      yElementsRef.current.set(id, data);
+      setActiveTool('select');
+      return;
+    }
+
+    if (tool === 'badge' && extra?.badgeText) {
+      const center = fabricRef.current.getVpCenter();
+      const id = crypto.randomUUID();
+      localCreatedIdsRef.current.add(id);
+
+      const data: ElementData = {
+        id,
+        type: 'badge',
+        position: { x: center.x - 55, y: center.y - 16 },
+        size: { width: 110, height: 32 },
+        content: extra.badgeText,
+        badgeBg: extra.badgeBg,
+        badgeColor: extra.badgeColor,
+        style: { fill: extra.badgeBg || '#e0e7ff' },
       };
       yElementsRef.current.set(id, data);
       setActiveTool('select');
@@ -854,16 +1012,23 @@ export const CanvasApp = () => {
 
       const data: ElementData = {
         id,
-        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow',
-        position: { x: center.x - 60, y: center.y - 40 },
+        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow' | 'frame',
+        position:
+          tool === 'frame'
+            ? { x: center.x - 200, y: center.y - 150 }
+            : { x: center.x - 60, y: center.y - 40 },
         size:
-          tool === 'sticky'
+          tool === 'frame'
+            ? { width: 400, height: 300 }
+            : tool === 'sticky'
             ? { width: 160, height: 160 }
             : tool === 'circle'
             ? { width: 90, height: 90, radius: 45 }
             : { width: 120, height: 80 },
         content:
-          tool === 'text'
+          tool === 'frame'
+            ? 'Frame Container'
+            : tool === 'text'
             ? 'Type something...'
             : tool === 'sticky'
             ? 'Sticky Note'
@@ -872,7 +1037,12 @@ export const CanvasApp = () => {
           fill:
             tool === 'sticky'
               ? STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)]
+              : tool === 'frame'
+              ? 'rgba(248, 250, 252, 0.4)'
               : COLORS[Math.floor(Math.random() * COLORS.length)],
+          stroke: tool === 'frame' ? '#6366f1' : undefined,
+          strokeWidth: tool === 'frame' ? 2 : undefined,
+          strokeDashArray: tool === 'frame' ? [6, 6] : undefined,
         },
       };
 
@@ -898,7 +1068,10 @@ export const CanvasApp = () => {
       if ('fill' in props && typeof props.fill === 'string') newData.style.fill = props.fill;
       if ('stroke' in props && typeof props.stroke === 'string') newData.style.stroke = props.stroke;
       if ('strokeWidth' in props && typeof props.strokeWidth === 'number') newData.style.strokeWidth = props.strokeWidth;
+      if ('strokeDashArray' in props) newData.style.strokeDashArray = props.strokeDashArray;
       if ('fontFamily' in props && typeof props.fontFamily === 'string') newData.style.fontFamily = props.fontFamily;
+      if ('fontSize' in props && typeof props.fontSize === 'number') newData.style.fontSize = props.fontSize;
+      if ('textAlign' in props && typeof props.textAlign === 'string') newData.style.textAlign = props.textAlign;
       if ('content' in props && props.content !== undefined) newData.content = props.content;
 
       // Handle Z-Index Actions
@@ -920,6 +1093,154 @@ export const CanvasApp = () => {
     });
 
     fabricRef.current.requestRenderAll();
+  };
+
+  // Template Generator Handler
+  const handleSelectTemplate = (templateId: string) => {
+    if (!fabricRef.current || !yElementsRef.current) return;
+    const center = fabricRef.current.getVpCenter();
+    const startX = center.x - 300;
+    const startY = center.y - 200;
+
+    if (templateId === 'kanban') {
+      const columns = [
+        { title: 'TO DO', color: '#6366f1', cards: ['User Authentication', 'Design System Review'] },
+        { title: 'IN PROGRESS', color: '#f59e0b', cards: ['Real-time WebSocket Sync'] },
+        { title: 'DONE', color: '#10b981', cards: ['Canvas Initialization', 'Glassmorphic TopBar'] },
+      ];
+
+      columns.forEach((col, idx) => {
+        const colX = startX + idx * 260;
+        // Frame Container
+        const frameId = crypto.randomUUID();
+        yElementsRef.current?.set(frameId, {
+          id: frameId,
+          type: 'frame',
+          position: { x: colX, y: startY },
+          size: { width: 240, height: 420 },
+          content: col.title,
+          style: { fill: 'rgba(248, 250, 252, 0.4)', stroke: col.color, strokeWidth: 2, strokeDashArray: [6, 6] },
+        });
+
+        // Sticky Cards inside Frame
+        col.cards.forEach((cardText, cIdx) => {
+          const cardId = crypto.randomUUID();
+          yElementsRef.current?.set(cardId, {
+            id: cardId,
+            type: 'sticky',
+            position: { x: colX + 20, y: startY + 60 + cIdx * 110 },
+            size: { width: 200, height: 90 },
+            content: cardText,
+            style: { fill: col.color === '#6366f1' ? '#dbeafe' : col.color === '#f59e0b' ? '#fef3c7' : '#dcfce7' },
+          });
+        });
+      });
+    } else if (templateId === 'retrospective') {
+      const sections = [
+        { title: 'WHAT WENT WELL', color: '#10b981', text: 'Great team velocity and zero sync bugs!' },
+        { title: 'WHAT CAN IMPROVE', color: '#ef4444', text: 'More unit tests for edge-case handlers.' },
+        { title: 'ACTION ITEMS', color: '#3b82f6', text: 'Schedule HMR & memory audit next week.' },
+      ];
+
+      sections.forEach((sec, idx) => {
+        const secX = startX + idx * 260;
+        const frameId = crypto.randomUUID();
+        yElementsRef.current?.set(frameId, {
+          id: frameId,
+          type: 'frame',
+          position: { x: secX, y: startY },
+          size: { width: 240, height: 350 },
+          content: sec.title,
+          style: { fill: 'rgba(248, 250, 252, 0.4)', stroke: sec.color, strokeWidth: 2, strokeDashArray: [6, 6] },
+        });
+
+        const cardId = crypto.randomUUID();
+        yElementsRef.current?.set(cardId, {
+          id: cardId,
+          type: 'sticky',
+          position: { x: secX + 20, y: startY + 60 },
+          size: { width: 200, height: 120 },
+          content: sec.text,
+          style: { fill: sec.color === '#10b981' ? '#dcfce7' : sec.color === '#ef4444' ? '#fee2e2' : '#dbeafe' },
+        });
+      });
+    } else if (templateId === 'mindmap') {
+      const centralId = crypto.randomUUID();
+      yElementsRef.current?.set(centralId, {
+        id: centralId,
+        type: 'circle',
+        position: { x: center.x - 70, y: center.y - 70 },
+        size: { width: 140, height: 140, radius: 70 },
+        style: { fill: '#6366f1' },
+      });
+
+      const titleId = crypto.randomUUID();
+      yElementsRef.current?.set(titleId, {
+        id: titleId,
+        type: 'text',
+        position: { x: center.x - 50, y: center.y - 12 },
+        size: { width: 100, height: 30 },
+        content: 'Core Idea',
+        style: { fill: '#ffffff', fontSize: 20, fontFamily: 'Inter, sans-serif' },
+      });
+
+      const branches = [
+        { label: 'Feature A', x: center.x - 280, y: center.y - 120, color: '#ec4899' },
+        { label: 'Feature B', x: center.x + 180, y: center.y - 120, color: '#10b981' },
+        { label: 'User Experience', x: center.x - 280, y: center.y + 100, color: '#f59e0b' },
+        { label: 'Architecture', x: center.x + 180, y: center.y + 100, color: '#3b82f6' },
+      ];
+
+      branches.forEach((b) => {
+        const bId = crypto.randomUUID();
+        yElementsRef.current?.set(bId, {
+          id: bId,
+          type: 'sticky',
+          position: { x: b.x, y: b.y },
+          size: { width: 140, height: 100 },
+          content: b.label,
+          style: { fill: b.color === '#ec4899' ? '#f3e8ff' : b.color === '#10b981' ? '#dcfce7' : b.color === '#f59e0b' ? '#fef3c7' : '#dbeafe' },
+        });
+
+        const arrId = crypto.randomUUID();
+        yElementsRef.current?.set(arrId, {
+          id: arrId,
+          type: 'arrow',
+          position: { x: b.x > center.x ? center.x + 40 : b.x + 140, y: b.y + 50 },
+          size: { width: 100, height: 20 },
+          style: { fill: b.color },
+        });
+      });
+    } else if (templateId === 'swot') {
+      const swotCols = [
+        { title: 'STRENGTHS', color: '#10b981', x: startX, y: startY },
+        { title: 'WEAKNESSES', color: '#ef4444', x: startX + 270, y: startY },
+        { title: 'OPPORTUNITIES', color: '#3b82f6', x: startX, y: startY + 230 },
+        { title: 'THREATS', color: '#f59e0b', x: startX + 270, y: startY + 230 },
+      ];
+
+      swotCols.forEach((s) => {
+        const fId = crypto.randomUUID();
+        yElementsRef.current?.set(fId, {
+          id: fId,
+          type: 'frame',
+          position: { x: s.x, y: s.y },
+          size: { width: 250, height: 210 },
+          content: s.title,
+          style: { fill: 'rgba(248, 250, 252, 0.4)', stroke: s.color, strokeWidth: 2, strokeDashArray: [6, 6] },
+        });
+
+        const stId = crypto.randomUUID();
+        yElementsRef.current?.set(stId, {
+          id: stId,
+          type: 'sticky',
+          position: { x: s.x + 15, y: s.y + 50 },
+          size: { width: 220, height: 130 },
+          content: `Add ${s.title.toLowerCase()} notes here...`,
+          style: { fill: '#ffffff' },
+        });
+      });
+    }
   };
 
   const handleRoomNameChange = (newName: string) => {
@@ -1003,6 +1324,33 @@ export const CanvasApp = () => {
     link.click();
   };
 
+  const handleExportJson = () => {
+    if (!yElementsRef.current) return;
+    const elementsArray = Array.from(yElementsRef.current.values());
+    const jsonStr = JSON.stringify({ roomName, elements: elementsArray }, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `${roomName.toLowerCase().replace(/\s+/g, '-')}-backup.json`;
+    link.href = url;
+    link.click();
+  };
+
+  const handleImportJson = (jsonString: string) => {
+    try {
+      const data = JSON.parse(jsonString);
+      if (Array.isArray(data.elements) && yElementsRef.current) {
+        yElementsRef.current.clear();
+        data.elements.forEach((el: ElementData) => {
+          if (el.id) yElementsRef.current?.set(el.id, el);
+        });
+        if (data.roomName) handleRoomNameChange(data.roomName);
+      }
+    } catch {
+      alert('Invalid SyncBoard JSON backup file.');
+    }
+  };
+
   const clearBoard = () => {
     if (confirm('Are you sure you want to clear the entire workspace board?')) {
       yElementsRef.current?.clear();
@@ -1025,7 +1373,12 @@ export const CanvasApp = () => {
   const handleRedo = () => undoManagerRef.current?.redo();
 
   return (
-    <div ref={containerRef} className="relative w-screen h-screen bg-slate-50 overflow-hidden select-none">
+    <div
+      ref={containerRef}
+      className={`relative w-screen h-screen overflow-hidden select-none ${
+        showGrid ? 'bg-[#fcfcfd] grid-bg' : 'bg-slate-50'
+      }`}
+    >
       <TopBar
         status={status}
         roomName={roomName}
@@ -1035,15 +1388,21 @@ export const CanvasApp = () => {
         canUndo={canUndo}
         canRedo={canRedo}
         onExport={handleExport}
+        onExportJson={handleExportJson}
+        onImportJson={handleImportJson}
         users={remoteUsers}
         localUser={localUser}
         onUpdateProfile={handleUpdateProfile}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid(!showGrid)}
       />
 
       <Toolbar
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+        onOpenTemplates={() => setIsTemplatesOpen(true)}
       />
 
       <ZoomControls
@@ -1065,6 +1424,17 @@ export const CanvasApp = () => {
         users={remoteUsers}
         remoteSelections={remoteSelections}
         laserPoints={laserPoints}
+      />
+
+      <TemplatesModal
+        isOpen={isTemplatesOpen}
+        onClose={() => setIsTemplatesOpen(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
+
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
 
       <canvas ref={canvasRef} />

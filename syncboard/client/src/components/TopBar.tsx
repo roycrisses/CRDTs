@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2, User } from 'lucide-react';
+import {
+  Undo2,
+  Redo2,
+  Share2,
+  Activity,
+  Download,
+  Upload,
+  Check,
+  Edit2,
+  User,
+  HelpCircle,
+  Grid,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ROOM_NAME_MAX_LENGTH, COLORS } from '../constants';
 
@@ -17,9 +29,14 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   onExport: () => void;
+  onExportJson: () => void;
+  onImportJson: (jsonString: string) => void;
   users: { id: number; name: string; color: string }[];
   localUser: UserProfile;
   onUpdateProfile: (profile: Partial<UserProfile>) => void;
+  onOpenShortcuts: () => void;
+  showGrid: boolean;
+  onToggleGrid: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -31,9 +48,14 @@ export const TopBar: React.FC<TopBarProps> = ({
   canUndo,
   canRedo,
   onExport,
+  onExportJson,
+  onImportJson,
   users,
   localUser,
   onUpdateProfile,
+  onOpenShortcuts,
+  showGrid,
+  onToggleGrid,
 }) => {
   const [isEditingRoom, setIsEditingRoom] = useState(false);
   const [tempRoomName, setTempRoomName] = useState(roomName);
@@ -41,6 +63,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [editingName, setEditingName] = useState(localUser.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTempRoomName(roomName);
@@ -86,6 +109,21 @@ export const TopBar: React.FC<TopBarProps> = ({
     }
   };
 
+  const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === 'string') {
+        onImportJson(content);
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
+
   const getInitials = (name: string) => {
     return (name || 'U')
       .split(' ')
@@ -97,6 +135,14 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50 transition-all">
+      <input
+        ref={jsonInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleJsonUpload}
+        className="hidden"
+      />
+
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
           <Activity className="text-white" size={24} />
@@ -139,8 +185,31 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Toggle Canvas Grid */}
+        <button
+          onClick={onToggleGrid}
+          className={cn(
+            'p-2.5 rounded-xl transition-all',
+            showGrid ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-slate-100/80'
+          )}
+          title="Toggle Canvas Background Grid"
+        >
+          <Grid size={18} />
+        </button>
+
+        {/* Shortcuts Helper Modal Button */}
+        <button
+          onClick={onOpenShortcuts}
+          className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
+          title="Keyboard Shortcuts (?)"
+        >
+          <HelpCircle size={18} />
+        </button>
+
+        <div className="w-px h-6 bg-slate-200/80 mx-0.5" />
+
         {/* Remote Users & Local User Profile */}
-        <div className="relative flex items-center -space-x-2 mr-2">
+        <div className="relative flex items-center -space-x-2 mr-1">
           {/* Local User Avatar */}
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -244,9 +313,25 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onExport}
           className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
-          title="Export Board to PNG"
+          title="Export Board to PNG Image"
         >
           <Download size={18} />
+        </button>
+
+        <button
+          onClick={onExportJson}
+          className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all text-xs font-bold"
+          title="Backup Board State to JSON File"
+        >
+          .JSON
+        </button>
+
+        <button
+          onClick={() => jsonInputRef.current?.click()}
+          className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
+          title="Import Board from JSON File"
+        >
+          <Upload size={18} />
         </button>
 
         <button
