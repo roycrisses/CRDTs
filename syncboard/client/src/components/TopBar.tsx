@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2, User } from 'lucide-react';
+import {
+  Undo2,
+  Redo2,
+  Share2,
+  Activity,
+  Download,
+  Upload,
+  Check,
+  Edit2,
+  User,
+  Grid,
+  HelpCircle,
+  FileJson,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ROOM_NAME_MAX_LENGTH, COLORS } from '../constants';
 
@@ -16,7 +30,12 @@ interface TopBarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
+  onExportPNG: () => void;
+  onExportJSON: () => void;
+  onImportJSON: (jsonContent: string) => void;
+  snapToGrid: boolean;
+  onToggleSnapToGrid: () => void;
+  onOpenShortcuts: () => void;
   users: { id: number; name: string; color: string }[];
   localUser: UserProfile;
   onUpdateProfile: (profile: Partial<UserProfile>) => void;
@@ -30,7 +49,12 @@ export const TopBar: React.FC<TopBarProps> = ({
   onRedo,
   canUndo,
   canRedo,
-  onExport,
+  onExportPNG,
+  onExportJSON,
+  onImportJSON,
+  snapToGrid,
+  onToggleSnapToGrid,
+  onOpenShortcuts,
   users,
   localUser,
   onUpdateProfile,
@@ -39,8 +63,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [tempRoomName, setTempRoomName] = useState(roomName);
   const [copied, setCopied] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [editingName, setEditingName] = useState(localUser.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTempRoomName(roomName);
@@ -86,6 +112,21 @@ export const TopBar: React.FC<TopBarProps> = ({
     }
   };
 
+  const handleJSONFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === 'string') {
+        onImportJSON(content);
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
+
   const getInitials = (name: string) => {
     return (name || 'U')
       .split(' ')
@@ -97,6 +138,14 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50 transition-all">
+      <input
+        ref={jsonFileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleJSONFileChange}
+        className="hidden"
+      />
+
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
           <Activity className="text-white" size={24} />
@@ -139,6 +188,32 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Snap to Grid Toggle */}
+        <button
+          onClick={onToggleSnapToGrid}
+          className={cn(
+            'p-2.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold',
+            snapToGrid
+              ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+              : 'text-slate-600 hover:bg-slate-100/80 border border-transparent'
+          )}
+          title="Snap to Grid (20px)"
+        >
+          <Grid size={18} />
+          <span className="hidden sm:inline">{snapToGrid ? 'Grid Snap On' : 'Grid Snap'}</span>
+        </button>
+
+        {/* Shortcuts Help Button */}
+        <button
+          onClick={onOpenShortcuts}
+          className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
+          title="Keyboard Shortcuts (?)"
+        >
+          <HelpCircle size={18} />
+        </button>
+
+        <div className="w-px h-6 bg-slate-200/80 mx-1" />
+
         {/* Remote Users & Local User Profile */}
         <div className="relative flex items-center -space-x-2 mr-2">
           {/* Local User Avatar */}
@@ -241,13 +316,49 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200/80 mx-1" />
 
-        <button
-          onClick={onExport}
-          className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
-          title="Export Board to PNG"
-        >
-          <Download size={18} />
-        </button>
+        {/* Export / Import Menu Popover */}
+        <div className="relative">
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all flex items-center gap-1"
+            title="Export / Import Options"
+          >
+            <Download size={18} />
+          </button>
+
+          {showExportMenu && (
+            <div className="absolute right-0 top-12 w-48 bg-white/95 backdrop-blur-2xl p-2 rounded-xl shadow-2xl border border-slate-200/80 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2">
+              <button
+                onClick={() => {
+                  onExportPNG();
+                  setShowExportMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <ImageIcon size={14} /> Export PNG Image
+              </button>
+              <button
+                onClick={() => {
+                  onExportJSON();
+                  setShowExportMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <FileJson size={14} /> Export Board JSON
+              </button>
+              <div className="h-px bg-slate-200/80 my-0.5" />
+              <button
+                onClick={() => {
+                  jsonFileInputRef.current?.click();
+                  setShowExportMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <Upload size={14} /> Import Board JSON
+              </button>
+            </div>
+          )}
+        </div>
 
         <button
           onClick={handleShare}

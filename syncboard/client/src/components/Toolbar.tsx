@@ -15,6 +15,8 @@ import {
   Trash2,
   Hand,
   ArrowRight,
+  Frame as FrameIcon,
+  LayoutTemplate,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { STAMPS, MAX_FILE_SIZE } from '../constants';
@@ -32,15 +34,22 @@ export type Tool =
   | 'sticky'
   | 'hand'
   | 'arrow'
-  | 'stamp';
+  | 'stamp'
+  | 'frame';
 
 interface ToolbarProps {
   activeTool: Tool;
   setActiveTool: (tool: Tool, extra?: { stampEmoji?: string; imageUrl?: string }) => void;
   onClear: () => void;
+  onOpenTemplates?: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  activeTool,
+  setActiveTool,
+  onClear,
+  onOpenTemplates,
+}) => {
   const [showStampPicker, setShowStampPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,6 +86,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     { id: 'highlighter', icon: Highlighter, label: 'Highlighter (I)' },
     { id: 'laser', icon: Pointer, label: 'Laser Pointer (L)' },
     { id: 'arrow', icon: ArrowRight, label: 'Connector / Arrow (A)' },
+    { id: 'frame', icon: FrameIcon, label: 'Frame Container (F)' },
     { id: 'rectangle', icon: Square, label: 'Rectangle (R)' },
     { id: 'circle', icon: CircleIcon, label: 'Circle (O)' },
     { id: 'triangle', icon: TriangleIcon, label: 'Triangle' },
@@ -96,6 +106,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
         onChange={handleImageUpload}
         className="hidden"
       />
+
+      {/* Templates Button */}
+      {onOpenTemplates && (
+        <button
+          onClick={onOpenTemplates}
+          className="p-2.5 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-all duration-200 group relative flex items-center justify-center mb-1"
+          title="Board Templates"
+        >
+          <LayoutTemplate size={20} />
+          <span className="absolute left-14 px-2 py-1 bg-slate-900/90 backdrop-blur text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity shadow-md z-50">
+            Board Templates
+          </span>
+        </button>
+      )}
+
+      {onOpenTemplates && <div className="h-px bg-slate-200/80 my-0.5 mx-2" />}
 
       {tools.map((tool) => {
         const isToolActive = activeTool === tool.id || (tool.id === 'stamp' && showStampPicker);

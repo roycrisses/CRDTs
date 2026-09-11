@@ -5,6 +5,8 @@
  * - Verified client production build (`npm run build`) and TypeScript compilation.
  * - Verified ESLint code style and syntax checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
+ * - Implemented FigJam feature expansions: Frame Containers, Interactive Templates (Kanban, Retrospective, Mind Map, SWOT),
+ *   Snap-to-Grid alignment, Connection status loading overlay, Keyboard Shortcuts Modal (F, ?), and JSON Board Backup Import/Export.
  * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
  */
 
@@ -13,6 +15,7 @@ import { fabric } from 'fabric';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { IndexeddbPersistence } from 'y-indexeddb';
+import { Activity, X, LayoutTemplate, Keyboard } from 'lucide-react';
 import type { Tool } from './components/Toolbar';
 import { Toolbar } from './components/Toolbar';
 import { TopBar } from './components/TopBar';
@@ -21,7 +24,7 @@ import { CursorsLayer } from './components/CursorsLayer';
 import { ZoomControls } from './components/ZoomControls';
 import type { PropertyUpdateProps } from './components/PropertyMenu';
 import { PropertyMenu } from './components/PropertyMenu';
-import { COLORS, STICKY_COLORS } from './constants';
+import { COLORS, STICKY_COLORS, TEMPLATES, getTemplateElements } from './constants';
 
 export type ElementData = {
   id: string;
@@ -35,11 +38,18 @@ export type ElementData = {
     | 'path'
     | 'arrow'
     | 'stamp'
-    | 'image';
+    | 'image'
+    | 'frame';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
   content?: string;
-  style: { fill: string; stroke?: string; strokeWidth?: number; fontFamily?: string };
+  style: {
+    fill: string;
+    stroke?: string;
+    strokeWidth?: number;
+    fontFamily?: string;
+    strokeDashArray?: number[];
+  };
   path?: (string | number)[][];
   scaleX?: number;
   scaleY?: number;
@@ -59,6 +69,7 @@ export interface FabricCanvasExtended extends fabric.Canvas {
 
 const DEFAULT_USER_NAME = `User ${Math.floor(Math.random() * 1000)}`;
 const DEFAULT_USER_COLOR = COLORS[Math.floor(Math.random() * COLORS.length)];
+const GRID_SIZE = 20;
 
 export const CanvasApp = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -70,6 +81,10 @@ export const CanvasApp = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+
   const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
   const [propertyMenuRect, setPropertyMenuRect] = useState<{
     left: number;
@@ -87,6 +102,11 @@ export const CanvasApp = () => {
   useEffect(() => {
     localUserRef.current = localUser;
   }, [localUser]);
+
+  const snapToGridRef = useRef(snapToGrid);
+  useEffect(() => {
+    snapToGridRef.current = snapToGrid;
+  }, [snapToGrid]);
 
   const [remoteUsers, setRemoteUsers] = useState<RemoteUser[]>([]);
   const [remoteSelections, setRemoteSelections] = useState<RemoteSelection[]>([]);
@@ -313,11 +333,16 @@ export const CanvasApp = () => {
           scaleY: data.scaleY || 1,
         };
 
-        if (data.type === 'sticky' && existing instanceof fabric.Group) {
+        if ((data.type === 'sticky' || data.type === 'frame') && existing instanceof fabric.Group) {
           const rect = existing.item(0) as fabric.Rect;
           const text = existing.item(1) as unknown as fabric.IText;
           existing.set(commonProps);
-          rect.set({ fill: data.style.fill });
+          rect.set({
+            fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
+          });
           if (data.content !== undefined) text.set({ text: data.content });
           if (data.style.fontFamily) text.set({ fontFamily: data.style.fontFamily });
         } else if (data.type === 'arrow' && existing instanceof fabric.Group) {
@@ -338,6 +363,7 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             stroke: data.style.stroke,
             strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
           });
           if (data.type === 'text' && existing instanceof fabric.IText) {
             if (data.content !== undefined) existing.set({ text: data.content });
@@ -353,7 +379,32 @@ export const CanvasApp = () => {
       } else {
         let obj: fabric.Object | undefined;
 
-        if (data.type === 'sticky') {
+        if (data.type === 'frame') {
+          const rect = new fabric.Rect({
+            width: data.size.width || 300,
+            height: data.size.height || 400,
+            fill: data.style.fill || 'rgba(99, 102, 241, 0.05)',
+            stroke: data.style.stroke || '#6366f1',
+            strokeWidth: data.style.strokeWidth || 2,
+            strokeDashArray: data.style.strokeDashArray,
+            rx: 12,
+            ry: 12,
+          });
+          const text = new fabric.IText(data.content || 'Frame Container', {
+            fontSize: 14,
+            fontFamily: data.style.fontFamily || 'Inter, sans-serif',
+            fontWeight: 'bold',
+            fill: data.style.stroke || '#4f46e5',
+            left: 14,
+            top: 14,
+          });
+          obj = new fabric.Group([rect, text], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+          });
+        } else if (data.type === 'sticky') {
           const rect = new fabric.Rect({
             width: 160,
             height: 160,
@@ -411,6 +462,9 @@ export const CanvasApp = () => {
             width: data.size.width,
             height: data.size.height,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
             rx: 10,
             ry: 10,
             scaleX: data.scaleX || 1,
@@ -422,6 +476,9 @@ export const CanvasApp = () => {
             top: data.position.y,
             radius: data.size.radius || 45,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -432,6 +489,9 @@ export const CanvasApp = () => {
             width: data.size.width || 100,
             height: data.size.height || 90,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -442,6 +502,9 @@ export const CanvasApp = () => {
             width: data.size.width || 80,
             height: data.size.height || 80,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
             angle: 45,
             rx: 6,
             ry: 6,
@@ -560,6 +623,13 @@ export const CanvasApp = () => {
           fontFamily = textItem.fontFamily;
         }
 
+        // Handle Snap to Grid
+        if (snapToGridRef.current && obj.left !== undefined && obj.top !== undefined) {
+          obj.left = Math.round(obj.left / GRID_SIZE) * GRID_SIZE;
+          obj.top = Math.round(obj.top / GRID_SIZE) * GRID_SIZE;
+          obj.setCoords();
+        }
+
         yElementsRef.current.set(obj.id, {
           ...data,
           position: { x: obj.left!, y: obj.top! },
@@ -671,6 +741,10 @@ export const CanvasApp = () => {
 
     fabricCanvas.on('object:modified', updateYjs);
     fabricCanvas.on('object:moving', (e) => {
+      if (snapToGridRef.current && e.target) {
+        e.target.left = Math.round((e.target.left || 0) / GRID_SIZE) * GRID_SIZE;
+        e.target.top = Math.round((e.target.top || 0) / GRID_SIZE) * GRID_SIZE;
+      }
       updateYjs(e);
       updateMenuPosition();
     });
@@ -729,7 +803,9 @@ export const CanvasApp = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      if (e.key === '?') {
+        setShowShortcutsModal((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateObject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -763,6 +839,8 @@ export const CanvasApp = () => {
         setActiveTool('laser');
       } else if (e.key.toLowerCase() === 'a') {
         setActiveTool('arrow');
+      } else if (e.key.toLowerCase() === 'f') {
+        setActiveTool('frame');
       } else if (e.key.toLowerCase() === 'r') {
         setActiveTool('rectangle');
       } else if (e.key.toLowerCase() === 'o') {
@@ -854,25 +932,33 @@ export const CanvasApp = () => {
 
       const data: ElementData = {
         id,
-        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow',
+        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow' | 'frame',
         position: { x: center.x - 60, y: center.y - 40 },
         size:
-          tool === 'sticky'
+          tool === 'frame'
+            ? { width: 300, height: 400 }
+            : tool === 'sticky'
             ? { width: 160, height: 160 }
             : tool === 'circle'
             ? { width: 90, height: 90, radius: 45 }
             : { width: 120, height: 80 },
         content:
-          tool === 'text'
+          tool === 'frame'
+            ? 'Frame Container'
+            : tool === 'text'
             ? 'Type something...'
             : tool === 'sticky'
             ? 'Sticky Note'
             : undefined,
         style: {
           fill:
-            tool === 'sticky'
+            tool === 'frame'
+              ? 'rgba(99, 102, 241, 0.05)'
+              : tool === 'sticky'
               ? STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)]
               : COLORS[Math.floor(Math.random() * COLORS.length)],
+          stroke: tool === 'frame' ? '#6366f1' : undefined,
+          strokeWidth: tool === 'frame' ? 2 : undefined,
         },
       };
 
@@ -898,6 +984,7 @@ export const CanvasApp = () => {
       if ('fill' in props && typeof props.fill === 'string') newData.style.fill = props.fill;
       if ('stroke' in props && typeof props.stroke === 'string') newData.style.stroke = props.stroke;
       if ('strokeWidth' in props && typeof props.strokeWidth === 'number') newData.style.strokeWidth = props.strokeWidth;
+      if ('strokeDashArray' in props && Array.isArray(props.strokeDashArray)) newData.style.strokeDashArray = props.strokeDashArray;
       if ('fontFamily' in props && typeof props.fontFamily === 'string') newData.style.fontFamily = props.fontFamily;
       if ('content' in props && props.content !== undefined) newData.content = props.content;
 
@@ -920,6 +1007,49 @@ export const CanvasApp = () => {
     });
 
     fabricRef.current.requestRenderAll();
+  };
+
+  const handleApplyTemplate = (templateId: string) => {
+    if (!fabricRef.current || !yElementsRef.current) return;
+    const center = fabricRef.current.getVpCenter();
+    const templateElements = getTemplateElements(templateId, center.x, center.y);
+
+    templateElements.forEach((el) => {
+      localCreatedIdsRef.current.add(el.id);
+      yElementsRef.current?.set(el.id, el as ElementData);
+    });
+
+    setShowTemplatesModal(false);
+  };
+
+  const handleExportJSON = () => {
+    if (!yElementsRef.current) return;
+    const arrayData = Array.from(yElementsRef.current.entries());
+    const jsonStr = JSON.stringify(arrayData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${roomName.toLowerCase().replace(/\s+/g, '-')}-backup.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJSON = (jsonString: string) => {
+    if (!yElementsRef.current) return;
+    try {
+      const parsed = JSON.parse(jsonString) as [string, ElementData][];
+      if (Array.isArray(parsed)) {
+        yElementsRef.current.clear();
+        parsed.forEach(([key, val]) => {
+          yElementsRef.current?.set(key, val);
+        });
+      } else {
+        alert('Invalid JSON board format.');
+      }
+    } catch {
+      alert('Failed to parse board JSON file.');
+    }
   };
 
   const handleRoomNameChange = (newName: string) => {
@@ -991,7 +1121,7 @@ export const CanvasApp = () => {
     setZoom(targetZoom);
   };
 
-  const handleExport = () => {
+  const handleExportPNG = () => {
     if (!fabricRef.current) return;
     const dataURL = fabricRef.current.toDataURL({
       format: 'png',
@@ -1026,6 +1156,128 @@ export const CanvasApp = () => {
 
   return (
     <div ref={containerRef} className="relative w-screen h-screen bg-slate-50 overflow-hidden select-none">
+      {/* Connecting Loading Overlay */}
+      {status === 'connecting' && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex flex-col items-center justify-center gap-3 text-white animate-in fade-in duration-200">
+          <Activity size={40} className="animate-spin text-indigo-400" />
+          <span className="text-base font-bold tracking-wide">Connecting to SyncBoard live session...</span>
+        </div>
+      )}
+
+      {/* Shortcuts Help Modal */}
+      {showShortcutsModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[90] flex items-center justify-center p-4">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-200/80 p-6 max-w-md w-full animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <Keyboard size={20} className="text-indigo-600" /> Keyboard Shortcuts
+              </h3>
+              <button
+                onClick={() => setShowShortcutsModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Select Tool</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">V</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Hand Pan Tool</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">H</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Pencil Draw</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">P</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Highlighter</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">I</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Laser Pointer</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">L</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Connector / Arrow</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">A</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Frame Container</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">F</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Rectangle</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">R</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Circle</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">O</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Text</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">T</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Sticky Note</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">S</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
+                <span className="text-slate-500">Duplicate</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">⌘/Ctrl+D</kbd>
+              </div>
+              <div className="flex justify-between p-2 bg-slate-50 rounded-lg col-span-2">
+                <span className="text-slate-500">Undo / Redo</span>
+                <kbd className="px-1.5 py-0.5 bg-white border rounded shadow-xs text-slate-800 font-mono">⌘Z / ⌘⇧Z</kbd>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Templates Picker Modal */}
+      {showTemplatesModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[90] flex items-center justify-center p-4">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-200/80 p-6 max-w-xl w-full animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <LayoutTemplate size={20} className="text-indigo-600" /> Insert Board Template
+              </h3>
+              <button
+                onClick={() => setShowTemplatesModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {TEMPLATES.map((tmpl) => (
+                <button
+                  key={tmpl.id}
+                  onClick={() => handleApplyTemplate(tmpl.id)}
+                  className="p-4 text-left border border-slate-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col justify-between"
+                >
+                  <div>
+                    <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md inline-block mb-2">
+                      {tmpl.category}
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                      {tmpl.name}
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{tmpl.description}</p>
+                  </div>
+                  <span className="text-xs font-bold text-indigo-600 mt-3 block group-hover:translate-x-1 transition-transform">
+                    Insert Template &rarr;
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <TopBar
         status={status}
         roomName={roomName}
@@ -1034,7 +1286,12 @@ export const CanvasApp = () => {
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
-        onExport={handleExport}
+        onExportPNG={handleExportPNG}
+        onExportJSON={handleExportJSON}
+        onImportJSON={handleImportJSON}
+        snapToGrid={snapToGrid}
+        onToggleSnapToGrid={() => setSnapToGrid((prev) => !prev)}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
         users={remoteUsers}
         localUser={localUser}
         onUpdateProfile={handleUpdateProfile}
@@ -1044,6 +1301,7 @@ export const CanvasApp = () => {
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+        onOpenTemplates={() => setShowTemplatesModal(true)}
       />
 
       <ZoomControls
@@ -1051,6 +1309,9 @@ export const CanvasApp = () => {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onReset={handleResetZoom}
+        snapToGrid={snapToGrid}
+        onToggleSnapToGrid={() => setSnapToGrid((prev) => !prev)}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
       />
 
       <PropertyMenu

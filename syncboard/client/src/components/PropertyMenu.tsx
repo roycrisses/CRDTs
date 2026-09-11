@@ -9,6 +9,7 @@ import {
   ArrowDownToLine,
   ChevronUp,
   ChevronDown,
+  Minus,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { COLORS, STICKY_COLORS, FONTS } from '../constants';
@@ -16,6 +17,8 @@ import { COLORS, STICKY_COLORS, FONTS } from '../constants';
 export interface PropertyUpdateProps extends Partial<fabric.ITextOptions> {
   content?: string;
   zAction?: 'front' | 'back' | 'forward' | 'backward';
+  strokeDashArray?: number[];
+  opacity?: number;
 }
 
 interface PropertyMenuProps {
@@ -51,6 +54,8 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
   const isSticky = selectedObject instanceof fabric.Group && selectedObject.item(0) instanceof fabric.Rect;
 
   const colorPalette = isSticky ? STICKY_COLORS : COLORS;
+
+  const isDashed = Array.isArray(selectedObject.strokeDashArray) && selectedObject.strokeDashArray.length > 0;
 
   return (
     <div
@@ -109,26 +114,43 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
         </>
       )}
 
-      {/* Stroke Toggle */}
+      {/* Stroke Toggle & Dash Style */}
       {!isSticky && (
-        <button
-          onClick={() => {
-            const currentWidth = selectedObject.strokeWidth || 0;
-            onUpdate({
-              strokeWidth: currentWidth === 0 ? 3 : 0,
-              stroke: (selectedObject.fill as string) || '#1e293b',
-            });
-          }}
-          className={cn(
-            'p-1.5 rounded-lg transition-colors',
-            selectedObject.strokeWidth
-              ? 'bg-indigo-50 text-indigo-600'
-              : 'text-slate-600 hover:bg-slate-100'
-          )}
-          title="Toggle Stroke"
-        >
-          <Square size={16} />
-        </button>
+        <>
+          <button
+            onClick={() => {
+              const currentWidth = selectedObject.strokeWidth || 0;
+              onUpdate({
+                strokeWidth: currentWidth === 0 ? 3 : 0,
+                stroke: (selectedObject.fill as string) || '#1e293b',
+              });
+            }}
+            className={cn(
+              'p-1.5 rounded-lg transition-colors',
+              selectedObject.strokeWidth
+                ? 'bg-indigo-50 text-indigo-600'
+                : 'text-slate-600 hover:bg-slate-100'
+            )}
+            title="Toggle Stroke"
+          >
+            <Square size={16} />
+          </button>
+
+          <button
+            onClick={() => {
+              onUpdate({
+                strokeDashArray: isDashed ? [] : [6, 6],
+              });
+            }}
+            className={cn(
+              'p-1.5 rounded-lg transition-colors',
+              isDashed ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100'
+            )}
+            title="Toggle Dashed Line"
+          >
+            <Minus size={16} className={isDashed ? 'stroke-dasharray-2' : ''} />
+          </button>
+        </>
       )}
 
       {/* Z-Index Controls */}
