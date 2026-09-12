@@ -4,6 +4,20 @@ export interface StampItem {
   label: string;
 }
 
+export interface StatusBadgeItem {
+  id: string;
+  label: string;
+  color: string;
+  textColor: string;
+}
+
+export interface BoardTemplate {
+  id: string;
+  title: string;
+  description: string;
+  category: 'agile' | 'retro' | 'ideation' | 'strategy';
+}
+
 export const STAMPS: StampItem[] = [
   { id: 'thumbsup', emoji: '👍', label: 'Thumbs Up' },
   { id: 'heart', emoji: '❤️', label: 'Heart' },
@@ -13,6 +27,42 @@ export const STAMPS: StampItem[] = [
   { id: 'party', emoji: '🎉', label: 'Party' },
   { id: 'rocket', emoji: '🚀', label: 'Rocket' },
   { id: 'check', emoji: '✅', label: 'Check' },
+];
+
+export const STATUS_BADGES: StatusBadgeItem[] = [
+  { id: 'in_progress', label: 'In Progress', color: '#3b82f6', textColor: '#ffffff' },
+  { id: 'approved', label: 'Approved', color: '#10b981', textColor: '#ffffff' },
+  { id: 'review', label: 'Needs Review', color: '#f59e0b', textColor: '#ffffff' },
+  { id: 'blocked', label: 'Blocked', color: '#ef4444', textColor: '#ffffff' },
+  { id: 'urgent', label: 'Urgent', color: '#8b5cf6', textColor: '#ffffff' },
+  { id: 'idea', label: 'Draft Idea', color: '#64748b', textColor: '#ffffff' },
+];
+
+export const TEMPLATES: BoardTemplate[] = [
+  {
+    id: 'kanban',
+    title: 'Kanban Board',
+    description: 'Structure work items into To Do, In Progress, and Done columns.',
+    category: 'agile',
+  },
+  {
+    id: 'retro',
+    title: 'Sprint Retrospective',
+    description: 'Reflect with What Went Well, What To Improve, and Action Items.',
+    category: 'retro',
+  },
+  {
+    id: 'mindmap',
+    title: 'Brainstorming & Mind Map',
+    description: 'Central concept surrounded by branching idea nodes.',
+    category: 'ideation',
+  },
+  {
+    id: 'swot',
+    title: 'SWOT Analysis Matrix',
+    description: 'Analyze Strengths, Weaknesses, Opportunities, and Threats.',
+    category: 'strategy',
+  },
 ];
 
 export const COLORS = [

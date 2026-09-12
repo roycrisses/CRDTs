@@ -15,9 +15,14 @@ import {
   Trash2,
   Hand,
   ArrowRight,
+  Frame,
+  Tag,
+  LayoutTemplate,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { STAMPS, MAX_FILE_SIZE } from '../constants';
+import { STAMPS, STATUS_BADGES, MAX_FILE_SIZE } from '../constants';
+import type { StatusBadgeItem } from '../constants';
 
 export type Tool =
   | 'select'
@@ -32,16 +37,30 @@ export type Tool =
   | 'sticky'
   | 'hand'
   | 'arrow'
-  | 'stamp';
+  | 'stamp'
+  | 'frame'
+  | 'badge';
 
 interface ToolbarProps {
   activeTool: Tool;
-  setActiveTool: (tool: Tool, extra?: { stampEmoji?: string; imageUrl?: string }) => void;
+  setActiveTool: (
+    tool: Tool,
+    extra?: { stampEmoji?: string; imageUrl?: string; badge?: StatusBadgeItem }
+  ) => void;
   onClear: () => void;
+  onOpenTemplates: () => void;
+  onOpenShortcuts: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  activeTool,
+  setActiveTool,
+  onClear,
+  onOpenTemplates,
+  onOpenShortcuts,
+}) => {
   const [showStampPicker, setShowStampPicker] = useState(false);
+  const [showBadgePicker, setShowBadgePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,7 +85,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     };
     reader.readAsDataURL(file);
 
-    // Reset input value
     if (e.target) e.target.value = '';
   };
 
@@ -77,18 +95,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     { id: 'highlighter', icon: Highlighter, label: 'Highlighter (I)' },
     { id: 'laser', icon: Pointer, label: 'Laser Pointer (L)' },
     { id: 'arrow', icon: ArrowRight, label: 'Connector / Arrow (A)' },
+    { id: 'frame', icon: Frame, label: 'Frame Container (F)' },
     { id: 'rectangle', icon: Square, label: 'Rectangle (R)' },
     { id: 'circle', icon: CircleIcon, label: 'Circle (O)' },
     { id: 'triangle', icon: TriangleIcon, label: 'Triangle' },
     { id: 'diamond', icon: DiamondIcon, label: 'Diamond' },
     { id: 'text', icon: Type, label: 'Text (T)' },
     { id: 'sticky', icon: StickyNote, label: 'Sticky Note (S)' },
+    { id: 'badge', icon: Tag, label: 'Status Badge' },
     { id: 'stamp', icon: Smile, label: 'Emoji Stamp' },
     { id: 'image', icon: ImageIcon, label: 'Upload Image' },
   ] as const;
 
   return (
-    <div className="fixed left-6 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 p-2 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50">
+    <div className="fixed left-6 top-1/2 -translate-y-1/2 flex flex-col gap-1 p-2 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden">
       <input
         ref={fileInputRef}
         type="file"
@@ -97,8 +117,29 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
         className="hidden"
       />
 
+      {/* Templates Modal Trigger */}
+      <button
+        onClick={() => {
+          setShowStampPicker(false);
+          setShowBadgePicker(false);
+          onOpenTemplates();
+        }}
+        className="p-2.5 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-all duration-200 group relative flex items-center justify-center font-bold"
+        title="Board Templates"
+      >
+        <LayoutTemplate size={20} />
+        <span className="absolute left-14 px-2 py-1 bg-indigo-950 backdrop-blur text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity shadow-md z-50">
+          Templates & Presets
+        </span>
+      </button>
+
+      <div className="h-px bg-slate-200/80 my-0.5 mx-2" />
+
       {tools.map((tool) => {
-        const isToolActive = activeTool === tool.id || (tool.id === 'stamp' && showStampPicker);
+        const isToolActive =
+          activeTool === tool.id ||
+          (tool.id === 'stamp' && showStampPicker) ||
+          (tool.id === 'badge' && showBadgePicker);
 
         return (
           <div key={tool.id} className="relative">
@@ -107,10 +148,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
                 if (tool.id === 'image') {
                   fileInputRef.current?.click();
                   setShowStampPicker(false);
+                  setShowBadgePicker(false);
                 } else if (tool.id === 'stamp') {
+                  setShowBadgePicker(false);
                   setShowStampPicker(!showStampPicker);
+                } else if (tool.id === 'badge') {
+                  setShowStampPicker(false);
+                  setShowBadgePicker(!showBadgePicker);
                 } else {
                   setShowStampPicker(false);
+                  setShowBadgePicker(false);
                   setActiveTool(tool.id as Tool);
                 }
               }}
@@ -146,12 +193,48 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
                 ))}
               </div>
             )}
+
+            {/* Status Badge Selector Popup */}
+            {tool.id === 'badge' && showBadgePicker && (
+              <div className="absolute left-14 top-0 bg-white/95 backdrop-blur-2xl p-2.5 rounded-2xl shadow-2xl border border-slate-200/80 z-50 flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-150 min-w-[150px]">
+                {STATUS_BADGES.map((badge: StatusBadgeItem) => (
+                  <button
+                    key={badge.id}
+                    onClick={() => {
+                      setActiveTool('badge', { badge });
+                      setShowBadgePicker(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-transform hover:scale-105 shadow-xs flex items-center justify-between"
+                    style={{ backgroundColor: badge.color }}
+                  >
+                    <span>{badge.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
 
-      <div className="h-px bg-slate-200/80 my-1 mx-2" />
+      <div className="h-px bg-slate-200/80 my-0.5 mx-2" />
 
+      {/* Keyboard Shortcuts Trigger */}
+      <button
+        onClick={() => {
+          setShowStampPicker(false);
+          setShowBadgePicker(false);
+          onOpenShortcuts();
+        }}
+        className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all duration-200 group relative flex items-center justify-center"
+        title="Shortcuts (?)"
+      >
+        <HelpCircle size={20} />
+        <span className="absolute left-14 px-2 py-1 bg-slate-900/90 backdrop-blur text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity shadow-md z-50">
+          Shortcuts (?)
+        </span>
+      </button>
+
+      {/* Clear Board */}
       <button
         onClick={onClear}
         className="p-2.5 rounded-xl text-rose-500 hover:bg-rose-50 transition-all duration-200 group relative flex items-center justify-center"

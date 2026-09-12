@@ -6,6 +6,7 @@
  * - Verified ESLint code style and syntax checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
  * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
+ * - Added FigJam/Miro features: Frame Containers, Status Badges, Keyboard Shortcuts Modal, and Interactive Templates (Kanban, Retrospective, Mind Map, SWOT).
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -21,7 +22,10 @@ import { CursorsLayer } from './components/CursorsLayer';
 import { ZoomControls } from './components/ZoomControls';
 import type { PropertyUpdateProps } from './components/PropertyMenu';
 import { PropertyMenu } from './components/PropertyMenu';
+import { ShortcutsModal } from './components/ShortcutsModal';
+import { TemplatesModal } from './components/TemplatesModal';
 import { COLORS, STICKY_COLORS } from './constants';
+import type { StatusBadgeItem } from './constants';
 
 export type ElementData = {
   id: string;
@@ -35,7 +39,9 @@ export type ElementData = {
     | 'path'
     | 'arrow'
     | 'stamp'
-    | 'image';
+    | 'image'
+    | 'frame'
+    | 'badge';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
   content?: string;
@@ -45,6 +51,7 @@ export type ElementData = {
   scaleY?: number;
   zIndex?: number;
   imageUrl?: string;
+  badgeLabel?: string;
 };
 
 export interface FabricObjectWithId extends fabric.Object {
@@ -77,6 +84,9 @@ export const CanvasApp = () => {
     width: number;
     height: number;
   } | null>(null);
+
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
 
   const [localUser, setLocalUser] = useState({
     name: DEFAULT_USER_NAME,
@@ -320,6 +330,23 @@ export const CanvasApp = () => {
           rect.set({ fill: data.style.fill });
           if (data.content !== undefined) text.set({ text: data.content });
           if (data.style.fontFamily) text.set({ fontFamily: data.style.fontFamily });
+        } else if (data.type === 'frame' && existing instanceof fabric.Group) {
+          const frameRect = existing.item(0) as fabric.Rect;
+          const titleText = existing.item(1) as unknown as fabric.IText;
+          existing.set(commonProps);
+          frameRect.set({
+            stroke: data.style.stroke || '#6366f1',
+            fill: data.style.fill || 'rgba(243, 244, 246, 0.4)',
+          });
+          if (data.content !== undefined) titleText.set({ text: data.content });
+        } else if (data.type === 'badge' && existing instanceof fabric.Group) {
+          const badgeRect = existing.item(0) as fabric.Rect;
+          const badgeText = existing.item(1) as unknown as fabric.IText;
+          existing.set(commonProps);
+          badgeRect.set({ fill: data.style.fill });
+          if (data.badgeLabel || data.content) {
+            badgeText.set({ text: data.badgeLabel || data.content });
+          }
         } else if (data.type === 'arrow' && existing instanceof fabric.Group) {
           const line = existing.item(0) as unknown as fabric.Line;
           const tip = existing.item(1) as unknown as fabric.Triangle;
@@ -353,14 +380,75 @@ export const CanvasApp = () => {
       } else {
         let obj: fabric.Object | undefined;
 
-        if (data.type === 'sticky') {
+        if (data.type === 'frame') {
+          const frameWidth = data.size.width || 400;
+          const frameHeight = data.size.height || 300;
+          const frameRect = new fabric.Rect({
+            width: frameWidth,
+            height: frameHeight,
+            fill: data.style.fill || 'rgba(243, 244, 246, 0.4)',
+            stroke: data.style.stroke || '#6366f1',
+            strokeWidth: data.style.strokeWidth || 2,
+            rx: 12,
+            ry: 12,
+          });
+          const titleText = new fabric.IText(data.content || 'Frame Container', {
+            fontSize: 16,
+            fontWeight: 'bold',
+            fontFamily: data.style.fontFamily || 'Inter, sans-serif',
+            fill: '#475569',
+            left: 16,
+            top: 12,
+          });
+          obj = new fabric.Group([frameRect, titleText], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+          });
+        } else if (data.type === 'badge') {
+          const badgeRect = new fabric.Rect({
+            width: 120,
+            height: 32,
+            fill: data.style.fill || '#3b82f6',
+            rx: 16,
+            ry: 16,
+            shadow: new fabric.Shadow({
+              color: 'rgba(0,0,0,0.1)',
+              blur: 6,
+              offsetX: 0,
+              offsetY: 2,
+            }),
+          });
+          const badgeText = new fabric.IText(data.badgeLabel || data.content || 'Status', {
+            fontSize: 12,
+            fontWeight: 'bold',
+            fontFamily: 'Inter, sans-serif',
+            fill: '#ffffff',
+            originX: 'center',
+            originY: 'center',
+            left: 60,
+            top: 16,
+          });
+          obj = new fabric.Group([badgeRect, badgeText], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+          });
+        } else if (data.type === 'sticky') {
           const rect = new fabric.Rect({
             width: 160,
             height: 160,
             fill: data.style.fill,
             rx: 6,
             ry: 6,
-            shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.12)', blur: 12, offsetX: 4, offsetY: 6 }),
+            shadow: new fabric.Shadow({
+              color: 'rgba(0,0,0,0.12)',
+              blur: 12,
+              offsetX: 4,
+              offsetY: 6,
+            }),
           });
           const text = new fabric.IText(data.content || 'Sticky Note', {
             fontSize: 16,
@@ -729,7 +817,10 @@ export const CanvasApp = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      if (e.key === '?') {
+        setShowShortcutsModal((prev) => !prev);
+        e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateObject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -763,6 +854,8 @@ export const CanvasApp = () => {
         setActiveTool('laser');
       } else if (e.key.toLowerCase() === 'a') {
         setActiveTool('arrow');
+      } else if (e.key.toLowerCase() === 'f') {
+        setActiveTool('frame');
       } else if (e.key.toLowerCase() === 'r') {
         setActiveTool('rectangle');
       } else if (e.key.toLowerCase() === 'o') {
@@ -796,10 +889,10 @@ export const CanvasApp = () => {
     };
   }, [duplicateObject]);
 
-  // Handle Adding Tool Elements
+  // Handle Adding Tool Elements & Badges
   const handleToolChange = (
     tool: Tool,
-    extra?: { stampEmoji?: string; imageUrl?: string }
+    extra?: { stampEmoji?: string; imageUrl?: string; badge?: StatusBadgeItem }
   ) => {
     if (!yElementsRef.current || !fabricRef.current) return;
 
@@ -817,6 +910,24 @@ export const CanvasApp = () => {
         imageUrl: extra.imageUrl,
         scaleX: 0.5,
         scaleY: 0.5,
+      };
+      yElementsRef.current.set(id, data);
+      setActiveTool('select');
+      return;
+    }
+
+    if (tool === 'badge' && extra?.badge) {
+      const center = fabricRef.current.getVpCenter();
+      const id = crypto.randomUUID();
+      localCreatedIdsRef.current.add(id);
+
+      const data: ElementData = {
+        id,
+        type: 'badge',
+        position: { x: center.x - 60, y: center.y - 16 },
+        size: { width: 120, height: 32 },
+        badgeLabel: extra.badge.label,
+        style: { fill: extra.badge.color },
       };
       yElementsRef.current.set(id, data);
       setActiveTool('select');
@@ -854,25 +965,44 @@ export const CanvasApp = () => {
 
       const data: ElementData = {
         id,
-        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow',
-        position: { x: center.x - 60, y: center.y - 40 },
+        type: tool as
+          | 'rectangle'
+          | 'circle'
+          | 'triangle'
+          | 'diamond'
+          | 'text'
+          | 'sticky'
+          | 'arrow'
+          | 'frame',
+        position:
+          tool === 'frame'
+            ? { x: center.x - 200, y: center.y - 150 }
+            : { x: center.x - 60, y: center.y - 40 },
         size:
-          tool === 'sticky'
+          tool === 'frame'
+            ? { width: 400, height: 300 }
+            : tool === 'sticky'
             ? { width: 160, height: 160 }
             : tool === 'circle'
             ? { width: 90, height: 90, radius: 45 }
             : { width: 120, height: 80 },
         content:
-          tool === 'text'
+          tool === 'frame'
+            ? 'Section Frame'
+            : tool === 'text'
             ? 'Type something...'
             : tool === 'sticky'
             ? 'Sticky Note'
             : undefined,
         style: {
           fill:
-            tool === 'sticky'
+            tool === 'frame'
+              ? 'rgba(243, 244, 246, 0.4)'
+              : tool === 'sticky'
               ? STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)]
               : COLORS[Math.floor(Math.random() * COLORS.length)],
+          stroke: tool === 'frame' ? '#6366f1' : undefined,
+          strokeWidth: tool === 'frame' ? 2 : undefined,
         },
       };
 
@@ -880,6 +1010,126 @@ export const CanvasApp = () => {
       setActiveTool('select');
     } else {
       setActiveTool(tool);
+    }
+  };
+
+  // Insert Interactive Templates
+  const handleSelectTemplate = (templateId: string) => {
+    if (!yElementsRef.current || !fabricRef.current) return;
+    const center = fabricRef.current.getVpCenter();
+
+    if (templateId === 'kanban') {
+      const columns = [
+        { title: 'To Do 📋', color: '#fee2e2', sticky: 'Research specs' },
+        { title: 'In Progress ⚡', color: '#dbeafe', sticky: 'Design layout' },
+        { title: 'Done 🎉', color: '#dcfce7', sticky: 'Setup repository' },
+      ];
+
+      columns.forEach((col, i) => {
+        const frameId = crypto.randomUUID();
+        const posX = center.x - 380 + i * 260;
+        const posY = center.y - 180;
+
+        // Column Frame
+        yElementsRef.current?.set(frameId, {
+          id: frameId,
+          type: 'frame',
+          position: { x: posX, y: posY },
+          size: { width: 240, height: 380 },
+          content: col.title,
+          style: { fill: 'rgba(248, 250, 252, 0.8)', stroke: '#cbd5e1', strokeWidth: 2 },
+        });
+
+        // Sample Sticky Card
+        const stickyId = crypto.randomUUID();
+        yElementsRef.current?.set(stickyId, {
+          id: stickyId,
+          type: 'sticky',
+          position: { x: posX + 40, y: posY + 60 },
+          size: { width: 160, height: 160 },
+          content: col.sticky,
+          style: { fill: col.color },
+        });
+      });
+    } else if (templateId === 'retro') {
+      const sections = [
+        { title: 'What Went Well 👍', color: '#dcfce7' },
+        { title: 'What To Improve 💡', color: '#fef3c7' },
+        { title: 'Action Items 🚀', color: '#dbeafe' },
+      ];
+
+      sections.forEach((sec, i) => {
+        const frameId = crypto.randomUUID();
+        const posX = center.x - 380 + i * 260;
+        const posY = center.y - 180;
+
+        yElementsRef.current?.set(frameId, {
+          id: frameId,
+          type: 'frame',
+          position: { x: posX, y: posY },
+          size: { width: 240, height: 360 },
+          content: sec.title,
+          style: { fill: 'rgba(248, 250, 252, 0.8)', stroke: '#94a3b8', strokeWidth: 2 },
+        });
+
+        const stickyId = crypto.randomUUID();
+        yElementsRef.current?.set(stickyId, {
+          id: stickyId,
+          type: 'sticky',
+          position: { x: posX + 40, y: posY + 60 },
+          size: { width: 160, height: 160 },
+          content: 'Add feedback item...',
+          style: { fill: sec.color },
+        });
+      });
+    } else if (templateId === 'mindmap') {
+      const mainId = crypto.randomUUID();
+      yElementsRef.current?.set(mainId, {
+        id: mainId,
+        type: 'rectangle',
+        position: { x: center.x - 80, y: center.y - 30 },
+        size: { width: 160, height: 60 },
+        content: 'Main Topic',
+        style: { fill: '#6366f1' },
+      });
+
+      const branches = [
+        { label: 'Subtopic A', x: center.x - 240, y: center.y - 120 },
+        { label: 'Subtopic B', x: center.x + 120, y: center.y - 120 },
+        { label: 'Subtopic C', x: center.x - 240, y: center.y + 80 },
+        { label: 'Subtopic D', x: center.x + 120, y: center.y + 80 },
+      ];
+
+      branches.forEach((b) => {
+        const subId = crypto.randomUUID();
+        yElementsRef.current?.set(subId, {
+          id: subId,
+          type: 'sticky',
+          position: { x: b.x, y: b.y },
+          size: { width: 140, height: 100 },
+          content: b.label,
+          style: { fill: '#f3e8ff' },
+        });
+      });
+    } else if (templateId === 'swot') {
+      const swotItems = [
+        { title: 'Strengths 💪', x: center.x - 260, y: center.y - 180, color: '#dcfce7' },
+        { title: 'Weaknesses ⚠️', x: center.x + 20, y: center.y - 180, color: '#fee2e2' },
+        { title: 'Opportunities 🌟', x: center.x - 260, y: center.y + 20, color: '#dbeafe' },
+        { title: 'Threats 🛡️', x: center.x + 20, y: center.y + 20, color: '#fef3c7' },
+      ];
+
+      swotItems.forEach((item) => {
+        const frameId = crypto.randomUUID();
+        yElementsRef.current?.set(frameId, {
+          id: frameId,
+          type: 'frame',
+          position: { x: item.x, y: item.y },
+          size: { width: 240, height: 180 },
+          content: item.title,
+          style: { fill: item.color, stroke: '#94a3b8', strokeWidth: 2 },
+        });
+      });
     }
   };
 
@@ -1044,6 +1294,8 @@ export const CanvasApp = () => {
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+        onOpenTemplates={() => setShowTemplatesModal(true)}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
       />
 
       <ZoomControls
@@ -1065,6 +1317,17 @@ export const CanvasApp = () => {
         users={remoteUsers}
         remoteSelections={remoteSelections}
         laserPoints={laserPoints}
+      />
+
+      <ShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
+
+      <TemplatesModal
+        isOpen={showTemplatesModal}
+        onClose={() => setShowTemplatesModal(false)}
+        onSelectTemplate={handleSelectTemplate}
       />
 
       <canvas ref={canvasRef} />
