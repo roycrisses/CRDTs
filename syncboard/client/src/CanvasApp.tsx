@@ -6,6 +6,7 @@
  * - Verified ESLint code style and syntax checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
  * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
+ * - Conducted comprehensive application security & protection review documented in `PROTECTION_REVIEW.md`.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
