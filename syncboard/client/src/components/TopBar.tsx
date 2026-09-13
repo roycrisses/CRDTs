@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2, User } from 'lucide-react';
+import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2, User, Grid, HelpCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ROOM_NAME_MAX_LENGTH, COLORS } from '../constants';
 
@@ -16,6 +16,9 @@ interface TopBarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  snapToGrid: boolean;
+  onToggleSnapToGrid: () => void;
+  onOpenShortcuts: () => void;
   onExport: () => void;
   users: { id: number; name: string; color: string }[];
   localUser: UserProfile;
@@ -30,6 +33,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onRedo,
   canUndo,
   canRedo,
+  snapToGrid,
+  onToggleSnapToGrid,
+  onOpenShortcuts,
   onExport,
   users,
   localUser,
@@ -222,6 +228,20 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200/80 mx-1" />
 
+        {/* Snap to Grid Toggle */}
+        <button
+          onClick={onToggleSnapToGrid}
+          className={cn(
+            "p-2.5 rounded-xl transition-all",
+            snapToGrid
+              ? "bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-xs"
+              : "text-slate-600 hover:bg-slate-100/80"
+          )}
+          title={`Snap to Grid: ${snapToGrid ? 'ON' : 'OFF'}`}
+        >
+          <Grid size={18} />
+        </button>
+
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -240,6 +260,14 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         <div className="w-px h-6 bg-slate-200/80 mx-1" />
+
+        <button
+          onClick={onOpenShortcuts}
+          className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
+          title="Keyboard Shortcuts (?)"
+        >
+          <HelpCircle size={18} />
+        </button>
 
         <button
           onClick={onExport}

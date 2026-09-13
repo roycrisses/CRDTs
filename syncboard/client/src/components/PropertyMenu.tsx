@@ -9,6 +9,12 @@ import {
   ArrowDownToLine,
   ChevronUp,
   ChevronDown,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { COLORS, STICKY_COLORS, FONTS } from '../constants';
@@ -16,6 +22,8 @@ import { COLORS, STICKY_COLORS, FONTS } from '../constants';
 export interface PropertyUpdateProps extends Partial<fabric.ITextOptions> {
   content?: string;
   zAction?: 'front' | 'back' | 'forward' | 'backward';
+  alignAction?: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
+  opacity?: number;
 }
 
 interface PropertyMenuProps {
@@ -41,7 +49,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
   const rawLeft = rect.left + rect.width / 2;
   const rawTop = rect.top - 65;
 
-  const clampedLeft = Math.max(180, Math.min(window.innerWidth - 180, rawLeft));
+  const clampedLeft = Math.max(220, Math.min(window.innerWidth - 220, rawLeft));
   const clampedTop = Math.max(80, Math.min(window.innerHeight - 80, rawTop < 80 ? rect.top + rect.height + 15 : rawTop));
 
   const isText =
@@ -54,7 +62,7 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
 
   return (
     <div
-      className="fixed flex items-center gap-1.5 p-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/80 z-50 animate-in fade-in zoom-in-95 duration-150 -translate-x-1/2"
+      className="fixed flex items-center gap-1.5 p-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/80 z-50 animate-in fade-in zoom-in-95 duration-150 -translate-x-1/2 flex-wrap max-w-[95vw]"
       style={{
         left: `${clampedLeft}px`,
         top: `${clampedTop}px`,
@@ -108,6 +116,71 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
           <div className="w-px h-5 bg-slate-200/80 mx-0.5" />
         </>
       )}
+
+      {/* Alignment Controls */}
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={() => onUpdate({ alignAction: 'left' })}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Align Left"
+        >
+          <AlignLeft size={16} />
+        </button>
+        <button
+          onClick={() => onUpdate({ alignAction: 'center' })}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Align Center Horizontally"
+        >
+          <AlignCenter size={16} />
+        </button>
+        <button
+          onClick={() => onUpdate({ alignAction: 'right' })}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Align Right"
+        >
+          <AlignRight size={16} />
+        </button>
+        <button
+          onClick={() => onUpdate({ alignAction: 'top' })}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Align Top"
+        >
+          <AlignStartVertical size={16} />
+        </button>
+        <button
+          onClick={() => onUpdate({ alignAction: 'middle' })}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Align Middle Vertically"
+        >
+          <AlignCenterVertical size={16} />
+        </button>
+        <button
+          onClick={() => onUpdate({ alignAction: 'bottom' })}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Align Bottom"
+        >
+          <AlignEndVertical size={16} />
+        </button>
+      </div>
+
+      <div className="w-px h-5 bg-slate-200/80 mx-0.5" />
+
+      {/* Opacity Control */}
+      <div className="flex items-center gap-1.5 px-1">
+        <span className="text-[10px] font-bold text-slate-500">Opacity</span>
+        <input
+          type="range"
+          min="0.1"
+          max="1"
+          step="0.1"
+          defaultValue={selectedObject.opacity ?? 1}
+          onChange={(e) => onUpdate({ opacity: parseFloat(e.target.value) })}
+          className="w-16 accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+          title="Adjust Opacity"
+        />
+      </div>
+
+      <div className="w-px h-5 bg-slate-200/80 mx-0.5" />
 
       {/* Stroke Toggle */}
       {!isSticky && (

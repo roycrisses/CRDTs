@@ -1,11 +1,14 @@
 /*
  * Daily Audit & Fixes Log:
- * Date: 2026-09-09
+ * Date: 2026-09-10
  * Checks Performed:
  * - Verified client production build (`npm run build`) and TypeScript compilation.
  * - Verified ESLint code style and syntax checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
- * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
+ * - Added Interactive Templates modal (Kanban, Retrospective, Mind Map, SWOT).
+ * - Added Status Badges tool and Keyboard Shortcuts help modal.
+ * - Added Snap to Grid alignment mode, Object Alignment controls, and Opacity adjustment.
+ * - Confirmed Yjs real-time state synchronization and visual rendering with zero error regressions.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -21,7 +24,10 @@ import { CursorsLayer } from './components/CursorsLayer';
 import { ZoomControls } from './components/ZoomControls';
 import type { PropertyUpdateProps } from './components/PropertyMenu';
 import { PropertyMenu } from './components/PropertyMenu';
+import { TemplatesModal } from './components/TemplatesModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { COLORS, STICKY_COLORS } from './constants';
+import type { BoardTemplate, StatusBadge } from './constants';
 
 export type ElementData = {
   id: string;
@@ -70,6 +76,9 @@ export const CanvasApp = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
   const [propertyMenuRect, setPropertyMenuRect] = useState<{
     left: number;
@@ -87,6 +96,11 @@ export const CanvasApp = () => {
   useEffect(() => {
     localUserRef.current = localUser;
   }, [localUser]);
+
+  const snapToGridRef = useRef(snapToGrid);
+  useEffect(() => {
+    snapToGridRef.current = snapToGrid;
+  }, [snapToGrid]);
 
   const [remoteUsers, setRemoteUsers] = useState<RemoteUser[]>([]);
   const [remoteSelections, setRemoteSelections] = useState<RemoteSelection[]>([]);
@@ -355,8 +369,8 @@ export const CanvasApp = () => {
 
         if (data.type === 'sticky') {
           const rect = new fabric.Rect({
-            width: 160,
-            height: 160,
+            width: data.size.width || 160,
+            height: data.size.height || 160,
             fill: data.style.fill,
             rx: 6,
             ry: 6,
@@ -368,9 +382,9 @@ export const CanvasApp = () => {
             textAlign: 'center',
             originX: 'center',
             originY: 'center',
-            left: 80,
-            top: 80,
-            width: 140,
+            left: (data.size.width || 160) / 2,
+            top: (data.size.height || 160) / 2,
+            width: (data.size.width || 160) - 20,
             fill: '#1e293b',
             // @ts-expect-error: splitByGrapheme present in Fabric
             splitByGrapheme: true,
@@ -405,17 +419,48 @@ export const CanvasApp = () => {
             scaleY: data.scaleY || 1,
           });
         } else if (data.type === 'rectangle') {
-          obj = new fabric.Rect({
-            left: data.position.x,
-            top: data.position.y,
-            width: data.size.width,
-            height: data.size.height,
-            fill: data.style.fill,
-            rx: 10,
-            ry: 10,
-            scaleX: data.scaleX || 1,
-            scaleY: data.scaleY || 1,
-          });
+          if (data.content) {
+            const rect = new fabric.Rect({
+              width: data.size.width,
+              height: data.size.height,
+              fill: data.style.fill,
+              stroke: data.style.stroke,
+              strokeWidth: data.style.strokeWidth || 0,
+              rx: 8,
+              ry: 8,
+            });
+            const text = new fabric.IText(data.content, {
+              fontSize: 14,
+              fontFamily: data.style.fontFamily || 'Inter, sans-serif',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              originX: 'center',
+              originY: 'center',
+              left: data.size.width / 2,
+              top: data.size.height / 2,
+              fill: '#ffffff',
+            });
+            obj = new fabric.Group([rect, text], {
+              left: data.position.x,
+              top: data.position.y,
+              scaleX: data.scaleX || 1,
+              scaleY: data.scaleY || 1,
+            });
+          } else {
+            obj = new fabric.Rect({
+              left: data.position.x,
+              top: data.position.y,
+              width: data.size.width,
+              height: data.size.height,
+              fill: data.style.fill,
+              stroke: data.style.stroke,
+              strokeWidth: data.style.strokeWidth,
+              rx: 10,
+              ry: 10,
+              scaleX: data.scaleX || 1,
+              scaleY: data.scaleY || 1,
+            });
+          }
         } else if (data.type === 'circle') {
           obj = new fabric.Circle({
             left: data.position.x,
@@ -671,6 +716,13 @@ export const CanvasApp = () => {
 
     fabricCanvas.on('object:modified', updateYjs);
     fabricCanvas.on('object:moving', (e) => {
+      if (snapToGridRef.current && e.target) {
+        const GRID_SIZE = 20;
+        e.target.set({
+          left: Math.round(e.target.left! / GRID_SIZE) * GRID_SIZE,
+          top: Math.round(e.target.top! / GRID_SIZE) * GRID_SIZE,
+        });
+      }
       updateYjs(e);
       updateMenuPosition();
     });
@@ -729,7 +781,9 @@ export const CanvasApp = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      if (e.key === '?') {
+        setIsShortcutsOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateObject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -799,7 +853,7 @@ export const CanvasApp = () => {
   // Handle Adding Tool Elements
   const handleToolChange = (
     tool: Tool,
-    extra?: { stampEmoji?: string; imageUrl?: string }
+    extra?: { stampEmoji?: string; imageUrl?: string; statusBadge?: StatusBadge }
   ) => {
     if (!yElementsRef.current || !fabricRef.current) return;
 
@@ -817,6 +871,24 @@ export const CanvasApp = () => {
         imageUrl: extra.imageUrl,
         scaleX: 0.5,
         scaleY: 0.5,
+      };
+      yElementsRef.current.set(id, data);
+      setActiveTool('select');
+      return;
+    }
+
+    if (extra?.statusBadge) {
+      const center = fabricRef.current.getVpCenter();
+      const id = crypto.randomUUID();
+      localCreatedIdsRef.current.add(id);
+
+      const data: ElementData = {
+        id,
+        type: 'rectangle',
+        position: { x: center.x - 60, y: center.y - 18 },
+        size: { width: 130, height: 36 },
+        content: extra.statusBadge.label,
+        style: { fill: extra.statusBadge.color, fontFamily: 'Inter, sans-serif' },
       };
       yElementsRef.current.set(id, data);
       setActiveTool('select');
@@ -883,10 +955,65 @@ export const CanvasApp = () => {
     }
   };
 
+  const handleSelectTemplate = (template: BoardTemplate) => {
+    if (!yElementsRef.current || !fabricRef.current) return;
+    const center = fabricRef.current.getVpCenter();
+
+    template.elements.forEach((el) => {
+      const id = crypto.randomUUID();
+      const data: ElementData = {
+        id,
+        type: el.type,
+        position: { x: center.x + el.offsetX - 350, y: center.y + el.offsetY - 200 },
+        size: { width: el.width, height: el.height },
+        content: el.content,
+        style: {
+          fill: el.fill,
+          stroke: el.stroke,
+          strokeWidth: el.strokeWidth,
+          fontFamily: el.fontFamily,
+        },
+      };
+      yElementsRef.current?.set(id, data);
+    });
+  };
+
   // Property Update Handler
   const updateProperty = (props: PropertyUpdateProps) => {
     if (!fabricRef.current || !yElementsRef.current) return;
     const activeObjects = fabricRef.current.getActiveObjects();
+
+    // Alignment Actions
+    if (props.alignAction && activeObjects.length > 0) {
+      const activeObj = fabricRef.current.getActiveObject();
+      if (activeObj) {
+        const groupRect = activeObj.getBoundingRect();
+        activeObjects.forEach((obj: FabricObjectWithId) => {
+          if (!obj.id) return;
+          const objRect = obj.getBoundingRect();
+          let newLeft = obj.left!;
+          let newTop = obj.top!;
+
+          if (props.alignAction === 'left') newLeft = groupRect.left;
+          else if (props.alignAction === 'center') newLeft = groupRect.left + (groupRect.width - objRect.width) / 2;
+          else if (props.alignAction === 'right') newLeft = groupRect.left + groupRect.width - objRect.width;
+          else if (props.alignAction === 'top') newTop = groupRect.top;
+          else if (props.alignAction === 'middle') newTop = groupRect.top + (groupRect.height - objRect.height) / 2;
+          else if (props.alignAction === 'bottom') newTop = groupRect.top + groupRect.height - objRect.height;
+
+          obj.set({ left: newLeft, top: newTop });
+          obj.setCoords();
+
+          const data = yElementsRef.current?.get(obj.id);
+          if (data) {
+            yElementsRef.current?.set(obj.id, {
+              ...data,
+              position: { x: newLeft, y: newTop },
+            });
+          }
+        });
+      }
+    }
 
     activeObjects.forEach((obj: FabricObjectWithId) => {
       if (!obj.id) return;
@@ -900,6 +1027,10 @@ export const CanvasApp = () => {
       if ('strokeWidth' in props && typeof props.strokeWidth === 'number') newData.style.strokeWidth = props.strokeWidth;
       if ('fontFamily' in props && typeof props.fontFamily === 'string') newData.style.fontFamily = props.fontFamily;
       if ('content' in props && props.content !== undefined) newData.content = props.content;
+
+      if (typeof props.opacity === 'number') {
+        obj.set({ opacity: props.opacity });
+      }
 
       // Handle Z-Index Actions
       if (props.zAction && fabricRef.current) {
@@ -1034,6 +1165,9 @@ export const CanvasApp = () => {
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        snapToGrid={snapToGrid}
+        onToggleSnapToGrid={() => setSnapToGrid(!snapToGrid)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onExport={handleExport}
         users={remoteUsers}
         localUser={localUser}
@@ -1044,6 +1178,7 @@ export const CanvasApp = () => {
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+        onOpenTemplates={() => setIsTemplatesOpen(true)}
       />
 
       <ZoomControls
@@ -1065,6 +1200,17 @@ export const CanvasApp = () => {
         users={remoteUsers}
         remoteSelections={remoteSelections}
         laserPoints={laserPoints}
+      />
+
+      <TemplatesModal
+        isOpen={isTemplatesOpen}
+        onClose={() => setIsTemplatesOpen(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
+
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
 
       <canvas ref={canvasRef} />

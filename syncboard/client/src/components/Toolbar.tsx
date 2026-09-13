@@ -15,9 +15,12 @@ import {
   Trash2,
   Hand,
   ArrowRight,
+  LayoutTemplate,
+  Tag,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { STAMPS, MAX_FILE_SIZE } from '../constants';
+import { STAMPS, STATUS_BADGES, MAX_FILE_SIZE } from '../constants';
+import type { StatusBadge } from '../constants';
 
 export type Tool =
   | 'select'
@@ -36,12 +39,19 @@ export type Tool =
 
 interface ToolbarProps {
   activeTool: Tool;
-  setActiveTool: (tool: Tool, extra?: { stampEmoji?: string; imageUrl?: string }) => void;
+  setActiveTool: (tool: Tool, extra?: { stampEmoji?: string; imageUrl?: string; statusBadge?: StatusBadge }) => void;
   onClear: () => void;
+  onOpenTemplates: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  activeTool,
+  setActiveTool,
+  onClear,
+  onOpenTemplates,
+}) => {
   const [showStampPicker, setShowStampPicker] = useState(false);
+  const [showBadgePicker, setShowBadgePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,7 +76,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     };
     reader.readAsDataURL(file);
 
-    // Reset input value
     if (e.target) e.target.value = '';
   };
 
@@ -83,8 +92,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     { id: 'diamond', icon: DiamondIcon, label: 'Diamond' },
     { id: 'text', icon: Type, label: 'Text (T)' },
     { id: 'sticky', icon: StickyNote, label: 'Sticky Note (S)' },
+    { id: 'badge', icon: Tag, label: 'Status Badge' },
     { id: 'stamp', icon: Smile, label: 'Emoji Stamp' },
     { id: 'image', icon: ImageIcon, label: 'Upload Image' },
+    { id: 'templates', icon: LayoutTemplate, label: 'Templates' },
   ] as const;
 
   return (
@@ -98,7 +109,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
       />
 
       {tools.map((tool) => {
-        const isToolActive = activeTool === tool.id || (tool.id === 'stamp' && showStampPicker);
+        const isToolActive =
+          activeTool === tool.id ||
+          (tool.id === 'stamp' && showStampPicker) ||
+          (tool.id === 'badge' && showBadgePicker);
 
         return (
           <div key={tool.id} className="relative">
@@ -107,10 +121,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
                 if (tool.id === 'image') {
                   fileInputRef.current?.click();
                   setShowStampPicker(false);
+                  setShowBadgePicker(false);
                 } else if (tool.id === 'stamp') {
                   setShowStampPicker(!showStampPicker);
+                  setShowBadgePicker(false);
+                } else if (tool.id === 'badge') {
+                  setShowBadgePicker(!showBadgePicker);
+                  setShowStampPicker(false);
+                } else if (tool.id === 'templates') {
+                  setShowStampPicker(false);
+                  setShowBadgePicker(false);
+                  onOpenTemplates();
                 } else {
                   setShowStampPicker(false);
+                  setShowBadgePicker(false);
                   setActiveTool(tool.id as Tool);
                 }
               }}
@@ -142,6 +166,25 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
                     title={stamp.label}
                   >
                     {stamp.emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Status Badge Selector Popup */}
+            {tool.id === 'badge' && showBadgePicker && (
+              <div className="absolute left-14 top-0 bg-white/95 backdrop-blur-2xl p-2 rounded-2xl shadow-2xl border border-slate-200/80 z-50 flex flex-col gap-1.5 w-36 animate-in fade-in zoom-in-95 duration-150">
+                {STATUS_BADGES.map((badge) => (
+                  <button
+                    key={badge.id}
+                    onClick={() => {
+                      setActiveTool('select', { statusBadge: badge });
+                      setShowBadgePicker(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-left transition-transform hover:scale-105 shadow-xs"
+                    style={{ backgroundColor: badge.color, color: badge.textColor }}
+                  >
+                    {badge.label}
                   </button>
                 ))}
               </div>
