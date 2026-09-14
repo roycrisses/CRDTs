@@ -15,6 +15,8 @@ import {
   Trash2,
   Hand,
   ArrowRight,
+  LayoutGrid,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { STAMPS, MAX_FILE_SIZE } from '../constants';
@@ -38,9 +40,17 @@ interface ToolbarProps {
   activeTool: Tool;
   setActiveTool: (tool: Tool, extra?: { stampEmoji?: string; imageUrl?: string }) => void;
   onClear: () => void;
+  onOpenTemplates: () => void;
+  onOpenShortcuts: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  activeTool,
+  setActiveTool,
+  onClear,
+  onOpenTemplates,
+  onOpenShortcuts,
+}) => {
   const [showStampPicker, setShowStampPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,6 +107,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
         className="hidden"
       />
 
+      {/* Templates Quick Button */}
+      <button
+        onClick={onOpenTemplates}
+        className="p-2.5 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-all duration-200 group relative flex items-center justify-center border border-indigo-100"
+        title="Templates Library"
+      >
+        <LayoutGrid size={20} />
+        <span className="absolute left-14 px-2 py-1 bg-indigo-900 text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity shadow-md z-50">
+          Templates Library
+        </span>
+      </button>
+
+      <div className="h-px bg-slate-200/80 my-0.5 mx-2" />
+
       {tools.map((tool) => {
         const isToolActive = activeTool === tool.id || (tool.id === 'stamp' && showStampPicker);
 
@@ -150,8 +174,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
         );
       })}
 
-      <div className="h-px bg-slate-200/80 my-1 mx-2" />
+      <div className="h-px bg-slate-200/80 my-0.5 mx-2" />
 
+      {/* Shortcuts Button */}
+      <button
+        onClick={onOpenShortcuts}
+        className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100 transition-all duration-200 group relative flex items-center justify-center"
+        title="Keyboard Shortcuts (?)"
+      >
+        <HelpCircle size={20} />
+        <span className="absolute left-14 px-2 py-1 bg-slate-900/90 backdrop-blur text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity shadow-md z-50">
+          Keyboard Shortcuts (?)
+        </span>
+      </button>
+
+      {/* Clear Board Button */}
       <button
         onClick={onClear}
         className="p-2.5 rounded-xl text-rose-500 hover:bg-rose-50 transition-all duration-200 group relative flex items-center justify-center"

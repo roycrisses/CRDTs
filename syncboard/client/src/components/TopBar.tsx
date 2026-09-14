@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2, User } from 'lucide-react';
+import {
+  Undo2,
+  Redo2,
+  Share2,
+  Activity,
+  Download,
+  Check,
+  Edit2,
+  User,
+  LayoutGrid,
+  HelpCircle,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ROOM_NAME_MAX_LENGTH, COLORS } from '../constants';
 
@@ -20,6 +31,8 @@ interface TopBarProps {
   users: { id: number; name: string; color: string }[];
   localUser: UserProfile;
   onUpdateProfile: (profile: Partial<UserProfile>) => void;
+  onOpenTemplates?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -34,6 +47,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   users,
   localUser,
   onUpdateProfile,
+  onOpenTemplates,
+  onOpenShortcuts,
 }) => {
   const [isEditingRoom, setIsEditingRoom] = useState(false);
   const [tempRoomName, setTempRoomName] = useState(roomName);
@@ -139,6 +154,18 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Templates Quick Launcher */}
+        {onOpenTemplates && (
+          <button
+            onClick={onOpenTemplates}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-100"
+            title="Browse Canvas Templates"
+          >
+            <LayoutGrid size={15} />
+            Templates
+          </button>
+        )}
+
         {/* Remote Users & Local User Profile */}
         <div className="relative flex items-center -space-x-2 mr-2">
           {/* Local User Avatar */}
@@ -179,7 +206,9 @@ export const TopBar: React.FC<TopBarProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 mb-1 block">Your Display Name</label>
+                <label className="text-[11px] font-semibold text-slate-500 mb-1 block">
+                  Your Display Name
+                </label>
                 <input
                   type="text"
                   value={editingName}
@@ -201,15 +230,17 @@ export const TopBar: React.FC<TopBarProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 mb-1 block">Avatar Color</label>
+                <label className="text-[11px] font-semibold text-slate-500 mb-1 block">
+                  Avatar Color
+                </label>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {COLORS.map((color) => (
                     <button
                       key={color}
                       onClick={() => onUpdateProfile({ color })}
                       className={cn(
-                        "w-6 h-6 rounded-full transition-transform hover:scale-110 border border-black/10 flex items-center justify-center",
-                        localUser.color === color && "ring-2 ring-indigo-600 ring-offset-1"
+                        'w-6 h-6 rounded-full transition-transform hover:scale-110 border border-black/10 flex items-center justify-center',
+                        localUser.color === color && 'ring-2 ring-indigo-600 ring-offset-1'
                       )}
                       style={{ backgroundColor: color }}
                     />
@@ -240,6 +271,16 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         <div className="w-px h-6 bg-slate-200/80 mx-1" />
+
+        {onOpenShortcuts && (
+          <button
+            onClick={onOpenShortcuts}
+            className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
+            title="Keyboard Shortcuts (?)"
+          >
+            <HelpCircle size={18} />
+          </button>
+        )}
 
         <button
           onClick={onExport}

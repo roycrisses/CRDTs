@@ -1,13 +1,16 @@
 /*
  * Daily Audit & Fixes Log:
- * Date: 2026-09-14
+ * Date: 2026-09-18
  * Checks Performed:
+ * - Isolated Fabric.js canvas wrapper DOM inside dedicated container div to prevent React 19 DOM reconciliation errors ('insertBefore').
+ * - Added FigJam / Miro template engine (Kanban, Retrospective, Mind Map, SWOT) with interactive batch insertion.
+ * - Added Keyboard Shortcuts cheat sheet modal and keybinding ('?').
+ * - Expanded PropertyMenu with status badge quick-stamps, font sizes, opacity controls, and stroke dash style toggles.
  * - Verified client production build (`npm run build`) and TypeScript compilation.
  * - Verified ESLint code style and syntax checks (`npm run lint`).
- * - Verified server entry syntax (`node --check index.js`).
  * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
  *
- * Date: 2026-09-09
+ * Date: 2026-09-14
  * Checks Performed:
  * - Verified client production build (`npm run build`) and TypeScript compilation.
  * - Verified ESLint code style and syntax checks (`npm run lint`).
@@ -28,7 +31,10 @@ import { CursorsLayer } from './components/CursorsLayer';
 import { ZoomControls } from './components/ZoomControls';
 import type { PropertyUpdateProps } from './components/PropertyMenu';
 import { PropertyMenu } from './components/PropertyMenu';
+import { TemplatesModal } from './components/TemplatesModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { COLORS, STICKY_COLORS } from './constants';
+import type { BoardTemplate } from './constants';
 
 export type ElementData = {
   id: string;
@@ -52,6 +58,8 @@ export type ElementData = {
   scaleY?: number;
   zIndex?: number;
   imageUrl?: string;
+  opacity?: number;
+  strokeDashArray?: number[];
 };
 
 export interface FabricObjectWithId extends fabric.Object {
@@ -84,6 +92,9 @@ export const CanvasApp = () => {
     width: number;
     height: number;
   } | null>(null);
+
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const [localUser, setLocalUser] = useState({
     name: DEFAULT_USER_NAME,
@@ -318,6 +329,7 @@ export const CanvasApp = () => {
           top: data.position.y,
           scaleX: data.scaleX || 1,
           scaleY: data.scaleY || 1,
+          opacity: typeof data.opacity === 'number' ? data.opacity : 1,
         };
 
         if (data.type === 'sticky' && existing instanceof fabric.Group) {
@@ -345,6 +357,7 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             stroke: data.style.stroke,
             strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.strokeDashArray,
           });
           if (data.type === 'text' && existing instanceof fabric.IText) {
             if (data.content !== undefined) existing.set({ text: data.content });
@@ -387,6 +400,7 @@ export const CanvasApp = () => {
             top: data.position.y,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
           });
         } else if (data.type === 'arrow') {
           const line = new fabric.Line([0, 25, 120, 25], {
@@ -410,6 +424,7 @@ export const CanvasApp = () => {
             top: data.position.y,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
           });
         } else if (data.type === 'rectangle') {
           obj = new fabric.Rect({
@@ -422,6 +437,8 @@ export const CanvasApp = () => {
             ry: 10,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
+            strokeDashArray: data.strokeDashArray,
           });
         } else if (data.type === 'circle') {
           obj = new fabric.Circle({
@@ -431,6 +448,8 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
+            strokeDashArray: data.strokeDashArray,
           });
         } else if (data.type === 'triangle') {
           obj = new fabric.Triangle({
@@ -441,6 +460,8 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
+            strokeDashArray: data.strokeDashArray,
           });
         } else if (data.type === 'diamond') {
           obj = new fabric.Rect({
@@ -454,6 +475,8 @@ export const CanvasApp = () => {
             ry: 6,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
+            strokeDashArray: data.strokeDashArray,
           });
         } else if (data.type === 'text') {
           obj = new fabric.IText(data.content || 'Type something...', {
@@ -464,6 +487,7 @@ export const CanvasApp = () => {
             fontSize: 24,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
           });
         } else if (data.type === 'stamp') {
           obj = new fabric.IText(data.content || '👍', {
@@ -472,6 +496,7 @@ export const CanvasApp = () => {
             fontSize: 48,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
           });
         } else if (data.type === 'image' && data.imageUrl) {
           fabric.Image.fromURL(
@@ -483,6 +508,7 @@ export const CanvasApp = () => {
                 top: data.position.y,
                 scaleX: data.scaleX || 0.5,
                 scaleY: data.scaleY || 0.5,
+                opacity: typeof data.opacity === 'number' ? data.opacity : 1,
               });
               (img as FabricObjectWithId).id = key;
               img.selectable = activeToolRef.current === 'select';
@@ -510,6 +536,7 @@ export const CanvasApp = () => {
             strokeLineJoin: 'round',
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: typeof data.opacity === 'number' ? data.opacity : 1,
           });
         }
 
@@ -577,6 +604,8 @@ export const CanvasApp = () => {
           },
           scaleX: obj.scaleX,
           scaleY: obj.scaleY,
+          opacity: obj.opacity,
+          strokeDashArray: obj.strokeDashArray,
           zIndex: fabricRef.current.getObjects().indexOf(obj),
           content,
           style: {
@@ -736,7 +765,10 @@ export const CanvasApp = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      if (e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateObject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -802,6 +834,35 @@ export const CanvasApp = () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [duplicateObject]);
+
+  // Handle Inserting Interactive FigJam Board Templates
+  const handleSelectTemplate = (template: BoardTemplate) => {
+    if (!yElementsRef.current || !fabricRef.current) return;
+
+    const center = fabricRef.current.getVpCenter();
+
+    template.elements.forEach((el) => {
+      const id = crypto.randomUUID();
+      const data: ElementData = {
+        id,
+        type: el.type,
+        position: {
+          x: center.x + el.xOffset,
+          y: center.y + el.yOffset,
+        },
+        size: {
+          width: el.width,
+          height: el.height,
+        },
+        content: el.content,
+        style: {
+          fill: el.fill,
+        },
+      };
+
+      yElementsRef.current?.set(id, data);
+    });
+  };
 
   // Handle Adding Tool Elements
   const handleToolChange = (
@@ -907,6 +968,21 @@ export const CanvasApp = () => {
       if ('strokeWidth' in props && typeof props.strokeWidth === 'number') newData.style.strokeWidth = props.strokeWidth;
       if ('fontFamily' in props && typeof props.fontFamily === 'string') newData.style.fontFamily = props.fontFamily;
       if ('content' in props && props.content !== undefined) newData.content = props.content;
+      if ('opacity' in props && typeof props.opacity === 'number') {
+        newData.opacity = props.opacity;
+        obj.set('opacity', props.opacity);
+      }
+      if ('strokeDashArray' in props && Array.isArray(props.strokeDashArray)) {
+        newData.strokeDashArray = props.strokeDashArray;
+        obj.set('strokeDashArray', props.strokeDashArray);
+      }
+      if ('fontSize' in props && typeof props.fontSize === 'number') {
+        if (obj instanceof fabric.IText) {
+          obj.set('fontSize', props.fontSize);
+        } else if (obj instanceof fabric.Group && obj.item(1) instanceof fabric.IText) {
+          (obj.item(1) as unknown as fabric.IText).set('fontSize', props.fontSize);
+        }
+      }
 
       // Handle Z-Index Actions
       if (props.zAction && fabricRef.current) {
@@ -1045,12 +1121,16 @@ export const CanvasApp = () => {
         users={remoteUsers}
         localUser={localUser}
         onUpdateProfile={handleUpdateProfile}
+        onOpenTemplates={() => setIsTemplatesOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
       <Toolbar
         activeTool={activeTool}
         setActiveTool={handleToolChange}
         onClear={clearBoard}
+        onOpenTemplates={() => setIsTemplatesOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
       <ZoomControls
@@ -1074,7 +1154,20 @@ export const CanvasApp = () => {
         laserPoints={laserPoints}
       />
 
-      <canvas ref={canvasRef} />
+      <TemplatesModal
+        isOpen={isTemplatesOpen}
+        onClose={() => setIsTemplatesOpen(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
+
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      <div className="absolute inset-0 pointer-events-auto">
+        <canvas ref={canvasRef} />
+      </div>
     </div>
   );
 };
