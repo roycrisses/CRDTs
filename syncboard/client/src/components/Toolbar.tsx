@@ -15,9 +15,16 @@ import {
   Trash2,
   Hand,
   ArrowRight,
+  Frame as FrameIcon,
+  Tag,
+  LayoutTemplate,
+  Columns3,
+  RotateCcw,
+  GitFork,
+  Grid2X2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { STAMPS, MAX_FILE_SIZE } from '../constants';
+import { STAMPS, STATUS_BADGES, BOARD_TEMPLATES, MAX_FILE_SIZE } from '../constants';
 
 export type Tool =
   | 'select'
@@ -32,16 +39,30 @@ export type Tool =
   | 'sticky'
   | 'hand'
   | 'arrow'
-  | 'stamp';
+  | 'stamp'
+  | 'frame'
+  | 'badge'
+  | 'template';
 
 interface ToolbarProps {
   activeTool: Tool;
-  setActiveTool: (tool: Tool, extra?: { stampEmoji?: string; imageUrl?: string }) => void;
+  setActiveTool: (
+    tool: Tool,
+    extra?: { stampEmoji?: string; imageUrl?: string; badgeText?: string; badgeColor?: string }
+  ) => void;
+  onSelectTemplate?: (templateId: string) => void;
   onClear: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onClear }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  activeTool,
+  setActiveTool,
+  onSelectTemplate,
+  onClear,
+}) => {
   const [showStampPicker, setShowStampPicker] = useState(false);
+  const [showBadgePicker, setShowBadgePicker] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,8 +87,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     };
     reader.readAsDataURL(file);
 
-    // Reset input value
     if (e.target) e.target.value = '';
+  };
+
+  const closePickers = () => {
+    setShowStampPicker(false);
+    setShowBadgePicker(false);
+    setShowTemplatePicker(false);
+  };
+
+  const templateIcons: Record<string, React.FC<{ size?: number }>> = {
+    Columns3,
+    RotateCcw,
+    GitFork,
+    Grid2X2,
   };
 
   const tools = [
@@ -83,7 +116,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
     { id: 'diamond', icon: DiamondIcon, label: 'Diamond' },
     { id: 'text', icon: Type, label: 'Text (T)' },
     { id: 'sticky', icon: StickyNote, label: 'Sticky Note (S)' },
+    { id: 'frame', icon: FrameIcon, label: 'Frame Container (F)' },
+    { id: 'badge', icon: Tag, label: 'Status Badge' },
     { id: 'stamp', icon: Smile, label: 'Emoji Stamp' },
+    { id: 'template', icon: LayoutTemplate, label: 'Board Templates' },
     { id: 'image', icon: ImageIcon, label: 'Upload Image' },
   ] as const;
 
@@ -98,7 +134,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
       />
 
       {tools.map((tool) => {
-        const isToolActive = activeTool === tool.id || (tool.id === 'stamp' && showStampPicker);
+        const isToolActive =
+          activeTool === tool.id ||
+          (tool.id === 'stamp' && showStampPicker) ||
+          (tool.id === 'badge' && showBadgePicker) ||
+          (tool.id === 'template' && showTemplatePicker);
 
         return (
           <div key={tool.id} className="relative">
@@ -106,11 +146,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
               onClick={() => {
                 if (tool.id === 'image') {
                   fileInputRef.current?.click();
-                  setShowStampPicker(false);
+                  closePickers();
                 } else if (tool.id === 'stamp') {
-                  setShowStampPicker(!showStampPicker);
+                  const targetState = !showStampPicker;
+                  closePickers();
+                  setShowStampPicker(targetState);
+                } else if (tool.id === 'badge') {
+                  const targetState = !showBadgePicker;
+                  closePickers();
+                  setShowBadgePicker(targetState);
+                } else if (tool.id === 'template') {
+                  const targetState = !showTemplatePicker;
+                  closePickers();
+                  setShowTemplatePicker(targetState);
                 } else {
-                  setShowStampPicker(false);
+                  closePickers();
                   setActiveTool(tool.id as Tool);
                 }
               }}
@@ -130,7 +180,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
 
             {/* Stamp Selector Popup */}
             {tool.id === 'stamp' && showStampPicker && (
-              <div className="absolute left-14 top-0 bg-white/95 backdrop-blur-2xl p-2.5 rounded-2xl shadow-2xl border border-slate-200/80 z-50 grid grid-cols-4 gap-2 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-14 top-0 bg-white/95 backdrop-blur-2xl p-2.5 rounded-2xl shadow-2xl border border-slate-200/80 z-50 grid grid-cols-4 gap-2 animate-in fade-in zoom-in-95 duration-150 min-w-[180px]">
                 {STAMPS.map((stamp) => (
                   <button
                     key={stamp.id}
@@ -144,6 +194,58 @@ export const Toolbar: React.FC<ToolbarProps> = ({ activeTool, setActiveTool, onC
                     {stamp.emoji}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Status Badge Selector Popup */}
+            {tool.id === 'badge' && showBadgePicker && (
+              <div className="absolute left-14 top-0 bg-white/95 backdrop-blur-2xl p-3 rounded-2xl shadow-2xl border border-slate-200/80 z-50 flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-150 min-w-[160px]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-1">
+                  Status Badges
+                </span>
+                {STATUS_BADGES.map((badge) => (
+                  <button
+                    key={badge.id}
+                    onClick={() => {
+                      setActiveTool('badge', { badgeText: badge.text, badgeColor: badge.color });
+                      setShowBadgePicker(false);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-white text-xs font-bold transition-transform hover:scale-105 shadow-xs flex items-center justify-between"
+                    style={{ backgroundColor: badge.color }}
+                  >
+                    <span>{badge.text}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Template Selector Popup */}
+            {tool.id === 'template' && showTemplatePicker && (
+              <div className="absolute left-14 top-0 bg-white/95 backdrop-blur-2xl p-3 rounded-2xl shadow-2xl border border-slate-200/80 z-50 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150 w-64">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Insert Board Template
+                </span>
+                {BOARD_TEMPLATES.map((tmpl) => {
+                  const IconComp = templateIcons[tmpl.icon] || LayoutTemplate;
+                  return (
+                    <button
+                      key={tmpl.id}
+                      onClick={() => {
+                        onSelectTemplate?.(tmpl.id);
+                        setShowTemplatePicker(false);
+                      }}
+                      className="flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-indigo-50/80 transition-colors border border-transparent hover:border-indigo-100 group"
+                    >
+                      <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <IconComp size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">{tmpl.name}</div>
+                        <div className="text-[11px] text-slate-500 leading-tight">{tmpl.description}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

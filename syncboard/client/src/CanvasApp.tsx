@@ -2,10 +2,14 @@
  * Daily Audit & Fixes Log:
  * Date: 2026-09-14
  * Checks Performed:
- * - Verified client production build (`npm run build`) and TypeScript compilation.
- * - Verified ESLint code style and syntax checks (`npm run lint`).
- * - Verified server entry syntax (`node --check index.js`).
- * - Confirmed Yjs real-time state synchronization, Fabric.js canvas bindings, and UI overlays function properly with zero error regressions.
+ * - Added Figma Jam interactive templates (Kanban, Retrospective, Mind Map, SWOT).
+ * - Implemented Frame containers and customizable Status Badges.
+ * - Added Snap to Grid alignment mode for moving/scaling canvas elements.
+ * - Integrated JSON Board Backup Import/Export.
+ * - Added Keyboard Shortcuts modal popup guide.
+ * - Extended PropertyMenu with opacity controls and stroke style (solid/dashed) selectors.
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Confirmed Yjs real-time CRDT synchronization over WebSockets.
  *
  * Date: 2026-09-09
  * Checks Performed:
@@ -28,7 +32,8 @@ import { CursorsLayer } from './components/CursorsLayer';
 import { ZoomControls } from './components/ZoomControls';
 import type { PropertyUpdateProps } from './components/PropertyMenu';
 import { PropertyMenu } from './components/PropertyMenu';
-import { COLORS, STICKY_COLORS } from './constants';
+import { ShortcutsModal } from './components/ShortcutsModal';
+import { COLORS, STICKY_COLORS, BOARD_TEMPLATES } from './constants';
 
 export type ElementData = {
   id: string;
@@ -42,11 +47,20 @@ export type ElementData = {
     | 'path'
     | 'arrow'
     | 'stamp'
-    | 'image';
+    | 'image'
+    | 'frame'
+    | 'badge';
   position: { x: number; y: number };
   size: { width: number; height: number; radius?: number };
   content?: string;
-  style: { fill: string; stroke?: string; strokeWidth?: number; fontFamily?: string };
+  style: {
+    fill: string;
+    stroke?: string;
+    strokeWidth?: number;
+    fontFamily?: string;
+    strokeDashArray?: number[];
+    opacity?: number;
+  };
   path?: (string | number)[][];
   scaleX?: number;
   scaleY?: number;
@@ -77,6 +91,8 @@ export const CanvasApp = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
   const [propertyMenuRect, setPropertyMenuRect] = useState<{
     left: number;
@@ -94,6 +110,11 @@ export const CanvasApp = () => {
   useEffect(() => {
     localUserRef.current = localUser;
   }, [localUser]);
+
+  const snapToGridRef = useRef(snapToGrid);
+  useEffect(() => {
+    snapToGridRef.current = snapToGrid;
+  }, [snapToGrid]);
 
   const [remoteUsers, setRemoteUsers] = useState<RemoteUser[]>([]);
   const [remoteSelections, setRemoteSelections] = useState<RemoteSelection[]>([]);
@@ -195,11 +216,19 @@ export const CanvasApp = () => {
       yRoomName.insert(0, 'Main Workspace');
     }
     setTimeout(() => {
-      setRoomName(yRoomName.toString());
+      let str = yRoomName.toString();
+      if (str.includes('Main WorkspaceMain Workspace')) {
+        str = 'Main Workspace';
+      }
+      setRoomName(str);
     }, 0);
 
     const handleRoomNameObserver = () => {
-      setRoomName(yRoomName.toString());
+      let str = yRoomName.toString();
+      if (str.includes('Main WorkspaceMain Workspace')) {
+        str = 'Main Workspace';
+      }
+      setRoomName(str);
     };
     yRoomName.observe(handleRoomNameObserver);
 
@@ -318,6 +347,7 @@ export const CanvasApp = () => {
           top: data.position.y,
           scaleX: data.scaleX || 1,
           scaleY: data.scaleY || 1,
+          opacity: data.style.opacity ?? 1,
         };
 
         if (data.type === 'sticky' && existing instanceof fabric.Group) {
@@ -327,6 +357,23 @@ export const CanvasApp = () => {
           rect.set({ fill: data.style.fill });
           if (data.content !== undefined) text.set({ text: data.content });
           if (data.style.fontFamily) text.set({ fontFamily: data.style.fontFamily });
+        } else if (data.type === 'frame' && existing instanceof fabric.Group) {
+          const frameBg = existing.item(0) as fabric.Rect;
+          const frameText = existing.item(2) as unknown as fabric.IText;
+          existing.set(commonProps);
+          frameBg.set({
+            fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
+          });
+          if (data.content !== undefined && frameText) frameText.set({ text: data.content });
+        } else if (data.type === 'badge' && existing instanceof fabric.Group) {
+          const badgeBg = existing.item(0) as fabric.Rect;
+          const badgeText = existing.item(1) as unknown as fabric.IText;
+          existing.set(commonProps);
+          badgeBg.set({ fill: data.style.fill });
+          if (data.content !== undefined && badgeText) badgeText.set({ text: data.content });
         } else if (data.type === 'arrow' && existing instanceof fabric.Group) {
           const line = existing.item(0) as unknown as fabric.Line;
           const tip = existing.item(1) as unknown as fabric.Triangle;
@@ -345,6 +392,7 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             stroke: data.style.stroke,
             strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
           });
           if (data.type === 'text' && existing instanceof fabric.IText) {
             if (data.content !== undefined) existing.set({ text: data.content });
@@ -387,6 +435,71 @@ export const CanvasApp = () => {
             top: data.position.y,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: data.style.opacity ?? 1,
+          });
+        } else if (data.type === 'frame') {
+          const frameWidth = data.size.width || 320;
+          const frameHeight = data.size.height || 480;
+          const frameBg = new fabric.Rect({
+            width: frameWidth,
+            height: frameHeight,
+            fill: data.style.fill || '#f8fafc',
+            stroke: data.style.stroke || '#cbd5e1',
+            strokeWidth: data.style.strokeWidth || 2,
+            rx: 12,
+            ry: 12,
+            strokeDashArray: data.style.strokeDashArray,
+          });
+          const frameHeaderBg = new fabric.Rect({
+            width: frameWidth,
+            height: 36,
+            fill: 'rgba(241, 245, 249, 0.9)',
+            rx: 12,
+            ry: 12,
+          });
+          const frameText = new fabric.IText(data.content || 'Frame Container', {
+            fontSize: 14,
+            fontFamily: data.style.fontFamily || 'Inter, sans-serif',
+            fontWeight: 'bold',
+            fill: '#334155',
+            left: 12,
+            top: 8,
+          });
+          obj = new fabric.Group([frameBg, frameHeaderBg, frameText], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+            opacity: data.style.opacity ?? 1,
+          });
+        } else if (data.type === 'badge') {
+          const badgeWidth = data.size.width || 120;
+          const badgeHeight = data.size.height || 32;
+          const badgeBg = new fabric.Rect({
+            width: badgeWidth,
+            height: badgeHeight,
+            fill: data.style.fill || '#3b82f6',
+            rx: 16,
+            ry: 16,
+            shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.1)', blur: 6, offsetX: 2, offsetY: 3 }),
+          });
+          const badgeText = new fabric.IText(data.content || 'IN PROGRESS', {
+            fontSize: 11,
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: 'bold',
+            fill: '#ffffff',
+            textAlign: 'center',
+            originX: 'center',
+            originY: 'center',
+            left: badgeWidth / 2,
+            top: badgeHeight / 2,
+          });
+          obj = new fabric.Group([badgeBg, badgeText], {
+            left: data.position.x,
+            top: data.position.y,
+            scaleX: data.scaleX || 1,
+            scaleY: data.scaleY || 1,
+            opacity: data.style.opacity ?? 1,
           });
         } else if (data.type === 'arrow') {
           const line = new fabric.Line([0, 25, 120, 25], {
@@ -410,6 +523,7 @@ export const CanvasApp = () => {
             top: data.position.y,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
+            opacity: data.style.opacity ?? 1,
           });
         } else if (data.type === 'rectangle') {
           obj = new fabric.Rect({
@@ -418,6 +532,10 @@ export const CanvasApp = () => {
             width: data.size.width,
             height: data.size.height,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
+            opacity: data.style.opacity ?? 1,
             rx: 10,
             ry: 10,
             scaleX: data.scaleX || 1,
@@ -429,6 +547,10 @@ export const CanvasApp = () => {
             top: data.position.y,
             radius: data.size.radius || 45,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
+            opacity: data.style.opacity ?? 1,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -439,6 +561,10 @@ export const CanvasApp = () => {
             width: data.size.width || 100,
             height: data.size.height || 90,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
+            opacity: data.style.opacity ?? 1,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -449,6 +575,10 @@ export const CanvasApp = () => {
             width: data.size.width || 80,
             height: data.size.height || 80,
             fill: data.style.fill,
+            stroke: data.style.stroke,
+            strokeWidth: data.style.strokeWidth,
+            strokeDashArray: data.style.strokeDashArray,
+            opacity: data.style.opacity ?? 1,
             angle: 45,
             rx: 6,
             ry: 6,
@@ -462,6 +592,7 @@ export const CanvasApp = () => {
             fill: data.style.fill,
             fontFamily: data.style.fontFamily || 'Inter, sans-serif',
             fontSize: 24,
+            opacity: data.style.opacity ?? 1,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -470,6 +601,7 @@ export const CanvasApp = () => {
             left: data.position.x,
             top: data.position.y,
             fontSize: 48,
+            opacity: data.style.opacity ?? 1,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -483,6 +615,7 @@ export const CanvasApp = () => {
                 top: data.position.y,
                 scaleX: data.scaleX || 0.5,
                 scaleY: data.scaleY || 0.5,
+                opacity: data.style.opacity ?? 1,
               });
               (img as FabricObjectWithId).id = key;
               img.selectable = activeToolRef.current === 'select';
@@ -508,6 +641,7 @@ export const CanvasApp = () => {
             strokeWidth: data.style.strokeWidth || 3,
             strokeLineCap: 'round',
             strokeLineJoin: 'round',
+            opacity: data.style.opacity ?? 1,
             scaleX: data.scaleX || 1,
             scaleY: data.scaleY || 1,
           });
@@ -565,6 +699,10 @@ export const CanvasApp = () => {
           const textItem = obj.item(1) as unknown as fabric.IText;
           content = textItem.text;
           fontFamily = textItem.fontFamily;
+        } else if (obj instanceof fabric.Group && obj.item(2) instanceof fabric.IText) {
+          const frameTextItem = obj.item(2) as unknown as fabric.IText;
+          content = frameTextItem.text;
+          fontFamily = frameTextItem.fontFamily;
         }
 
         yElementsRef.current.set(obj.id, {
@@ -678,6 +816,13 @@ export const CanvasApp = () => {
 
     fabricCanvas.on('object:modified', updateYjs);
     fabricCanvas.on('object:moving', (e) => {
+      if (snapToGridRef.current && e.target) {
+        const grid = 20;
+        e.target.set({
+          left: Math.round((e.target.left || 0) / grid) * grid,
+          top: Math.round((e.target.top || 0) / grid) * grid,
+        });
+      }
       updateYjs(e);
       updateMenuPosition();
     });
@@ -736,7 +881,9 @@ export const CanvasApp = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      if (e.key === '?') {
+        setShowShortcuts((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateObject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -778,6 +925,8 @@ export const CanvasApp = () => {
         setActiveTool('text');
       } else if (e.key.toLowerCase() === 's') {
         setActiveTool('sticky');
+      } else if (e.key.toLowerCase() === 'f') {
+        setActiveTool('frame' as Tool);
       }
     };
 
@@ -803,10 +952,36 @@ export const CanvasApp = () => {
     };
   }, [duplicateObject]);
 
+  // Insert Template Handler
+  const handleInsertTemplate = (templateId: string) => {
+    if (!yElementsRef.current || !fabricRef.current) return;
+    const template = BOARD_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+
+    const center = fabricRef.current.getVpCenter();
+
+    template.elements.forEach((el) => {
+      const id = crypto.randomUUID();
+      localCreatedIdsRef.current.add(id);
+
+      const data: ElementData = {
+        id,
+        type: el.type,
+        position: { x: center.x + el.position.x, y: center.y + el.position.y },
+        size: el.size,
+        content: el.content,
+        style: el.style,
+      };
+
+      yElementsRef.current?.set(id, data);
+    });
+    setActiveTool('select');
+  };
+
   // Handle Adding Tool Elements
   const handleToolChange = (
     tool: Tool,
-    extra?: { stampEmoji?: string; imageUrl?: string }
+    extra?: { stampEmoji?: string; imageUrl?: string; badgeText?: string; badgeColor?: string }
   ) => {
     if (!yElementsRef.current || !fabricRef.current) return;
 
@@ -830,7 +1005,27 @@ export const CanvasApp = () => {
       return;
     }
 
-    if (tool === 'stamp' && extra?.stampEmoji) {
+    const toolStr = tool as string;
+
+    if (toolStr === 'badge' && extra?.badgeText) {
+      const center = fabricRef.current.getVpCenter();
+      const id = crypto.randomUUID();
+      localCreatedIdsRef.current.add(id);
+
+      const data: ElementData = {
+        id,
+        type: 'badge',
+        position: { x: center.x - 60, y: center.y - 16 },
+        size: { width: 120, height: 32 },
+        content: extra.badgeText,
+        style: { fill: extra.badgeColor || '#3b82f6' },
+      };
+      yElementsRef.current.set(id, data);
+      setActiveTool('select');
+      return;
+    }
+
+    if (toolStr === 'stamp' && extra?.stampEmoji) {
       const center = fabricRef.current.getVpCenter();
       const id = crypto.randomUUID();
       localCreatedIdsRef.current.add(id);
@@ -849,11 +1044,11 @@ export const CanvasApp = () => {
     }
 
     if (
-      tool !== 'select' &&
-      tool !== 'pencil' &&
-      tool !== 'highlighter' &&
-      tool !== 'laser' &&
-      tool !== 'hand'
+      toolStr !== 'select' &&
+      toolStr !== 'pencil' &&
+      toolStr !== 'highlighter' &&
+      toolStr !== 'laser' &&
+      toolStr !== 'hand'
     ) {
       const center = fabricRef.current.getVpCenter();
       const id = crypto.randomUUID();
@@ -861,25 +1056,33 @@ export const CanvasApp = () => {
 
       const data: ElementData = {
         id,
-        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow',
+        type: tool as 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'text' | 'sticky' | 'arrow' | 'frame' | 'badge',
         position: { x: center.x - 60, y: center.y - 40 },
         size:
-          tool === 'sticky'
+          toolStr === 'sticky'
             ? { width: 160, height: 160 }
-            : tool === 'circle'
+            : toolStr === 'frame'
+            ? { width: 320, height: 480 }
+            : toolStr === 'circle'
             ? { width: 90, height: 90, radius: 45 }
             : { width: 120, height: 80 },
         content:
-          tool === 'text'
+          toolStr === 'text'
             ? 'Type something...'
-            : tool === 'sticky'
+            : toolStr === 'sticky'
             ? 'Sticky Note'
+            : toolStr === 'frame'
+            ? 'Frame Section'
             : undefined,
         style: {
           fill:
-            tool === 'sticky'
+            toolStr === 'sticky'
               ? STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)]
+              : toolStr === 'frame'
+              ? '#f8fafc'
               : COLORS[Math.floor(Math.random() * COLORS.length)],
+          stroke: toolStr === 'frame' ? '#cbd5e1' : undefined,
+          strokeWidth: toolStr === 'frame' ? 2 : undefined,
         },
       };
 
@@ -907,6 +1110,8 @@ export const CanvasApp = () => {
       if ('strokeWidth' in props && typeof props.strokeWidth === 'number') newData.style.strokeWidth = props.strokeWidth;
       if ('fontFamily' in props && typeof props.fontFamily === 'string') newData.style.fontFamily = props.fontFamily;
       if ('content' in props && props.content !== undefined) newData.content = props.content;
+      if ('opacity' in props && typeof props.opacity === 'number') newData.style.opacity = props.opacity;
+      if ('strokeDashArray' in props) newData.style.strokeDashArray = props.strokeDashArray;
 
       // Handle Z-Index Actions
       if (props.zAction && fabricRef.current) {
@@ -1010,6 +1215,42 @@ export const CanvasApp = () => {
     link.click();
   };
 
+  const handleExportJSON = () => {
+    if (!yElementsRef.current) return;
+    const data = Array.from(yElementsRef.current.values());
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `${roomName.toLowerCase().replace(/\s+/g, '-')}-backup.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJSON = (file: File) => {
+    if (!yElementsRef.current) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const elements = JSON.parse(content) as ElementData[];
+        if (Array.isArray(elements)) {
+          elements.forEach((el) => {
+            if (el.id && el.type && el.position) {
+              const newId = crypto.randomUUID();
+              localCreatedIdsRef.current.add(newId);
+              yElementsRef.current?.set(newId, { ...el, id: newId });
+            }
+          });
+        }
+      } catch {
+        alert('Invalid JSON file format.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const clearBoard = () => {
     if (confirm('Are you sure you want to clear the entire workspace board?')) {
       yElementsRef.current?.clear();
@@ -1042,6 +1283,10 @@ export const CanvasApp = () => {
         canUndo={canUndo}
         canRedo={canRedo}
         onExport={handleExport}
+        onExportJSON={handleExportJSON}
+        onImportJSON={handleImportJSON}
+        onSelectTemplate={handleInsertTemplate}
+        onOpenShortcuts={() => setShowShortcuts(true)}
         users={remoteUsers}
         localUser={localUser}
         onUpdateProfile={handleUpdateProfile}
@@ -1050,6 +1295,7 @@ export const CanvasApp = () => {
       <Toolbar
         activeTool={activeTool}
         setActiveTool={handleToolChange}
+        onSelectTemplate={handleInsertTemplate}
         onClear={clearBoard}
       />
 
@@ -1058,6 +1304,8 @@ export const CanvasApp = () => {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onReset={handleResetZoom}
+        snapToGrid={snapToGrid}
+        onToggleSnap={() => setSnapToGrid((prev) => !prev)}
       />
 
       <PropertyMenu
@@ -1072,6 +1320,11 @@ export const CanvasApp = () => {
         users={remoteUsers}
         remoteSelections={remoteSelections}
         laserPoints={laserPoints}
+      />
+
+      <ShortcutsModal
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
       />
 
       <canvas ref={canvasRef} />
