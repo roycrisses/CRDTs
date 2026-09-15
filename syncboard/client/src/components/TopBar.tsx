@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo2, Redo2, Share2, Activity, Download, Check, Edit2, User } from 'lucide-react';
+import {
+  Undo2,
+  Redo2,
+  Share2,
+  Activity,
+  Download,
+  Check,
+  Edit2,
+  User,
+  Keyboard,
+  FileJson,
+  Upload,
+  ChevronDown,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ROOM_NAME_MAX_LENGTH, COLORS } from '../constants';
 
@@ -17,6 +30,10 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   onExport: () => void;
+  onExportJSON?: () => void;
+  onImportJSON?: (file: File) => void;
+  onSelectTemplate?: (templateId: string) => void;
+  onOpenShortcuts?: () => void;
   users: { id: number; name: string; color: string }[];
   localUser: UserProfile;
   onUpdateProfile: (profile: Partial<UserProfile>) => void;
@@ -31,6 +48,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   canUndo,
   canRedo,
   onExport,
+  onExportJSON,
+  onImportJSON,
+  onOpenShortcuts,
   users,
   localUser,
   onUpdateProfile,
@@ -39,8 +59,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [tempRoomName, setTempRoomName] = useState(roomName);
   const [copied, setCopied] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [editingName, setEditingName] = useState(localUser.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTempRoomName(roomName);
@@ -95,8 +117,24 @@ export const TopBar: React.FC<TopBarProps> = ({
       .slice(0, 2);
   };
 
+  const handleJsonFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImportJSON?.(file);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   return (
     <div className="fixed top-6 left-6 right-6 h-16 flex items-center justify-between px-6 bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/50 z-50 transition-all">
+      <input
+        ref={jsonFileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleJsonFileChange}
+        className="hidden"
+      />
+
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-lg">
           <Activity className="text-white" size={24} />
@@ -143,7 +181,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="relative flex items-center -space-x-2 mr-2">
           {/* Local User Avatar */}
           <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            onClick={() => {
+              setShowExportMenu(false);
+              setShowProfileMenu(!showProfileMenu);
+            }}
             className="w-9 h-9 rounded-full border-2 border-indigo-600 flex items-center justify-center text-xs font-bold text-white shadow-md hover:scale-105 transition-transform z-20 relative"
             style={{ backgroundColor: localUser.color }}
             title={`Your profile: ${localUser.name}`}
@@ -241,12 +282,60 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="w-px h-6 bg-slate-200/80 mx-1" />
 
+        {/* Export / Backup Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setShowProfileMenu(false);
+              setShowExportMenu(!showExportMenu);
+            }}
+            className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all flex items-center gap-1"
+            title="Export or Import Options"
+          >
+            <Download size={18} />
+            <ChevronDown size={14} className="text-slate-400" />
+          </button>
+
+          {showExportMenu && (
+            <div className="absolute right-0 top-12 w-52 bg-white/95 backdrop-blur-2xl p-2 rounded-2xl shadow-2xl border border-slate-200/80 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2">
+              <button
+                onClick={() => {
+                  onExport();
+                  setShowExportMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <Download size={16} /> Export PNG Image
+              </button>
+              <button
+                onClick={() => {
+                  onExportJSON?.();
+                  setShowExportMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <FileJson size={16} /> Export JSON Backup
+              </button>
+              <button
+                onClick={() => {
+                  jsonFileInputRef.current?.click();
+                  setShowExportMenu(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <Upload size={16} /> Import JSON Backup
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Keyboard Shortcuts Button */}
         <button
-          onClick={onExport}
+          onClick={onOpenShortcuts}
           className="p-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 transition-all"
-          title="Export Board to PNG"
+          title="Keyboard Shortcuts (?)"
         >
-          <Download size={18} />
+          <Keyboard size={18} />
         </button>
 
         <button

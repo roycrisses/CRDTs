@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { fabric } from 'fabric';
 import {
   Type,
@@ -9,6 +9,8 @@ import {
   ArrowDownToLine,
   ChevronUp,
   ChevronDown,
+  Sun,
+  Sliders,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { COLORS, STICKY_COLORS, FONTS } from '../constants';
@@ -16,6 +18,8 @@ import { COLORS, STICKY_COLORS, FONTS } from '../constants';
 export interface PropertyUpdateProps extends Partial<fabric.ITextOptions> {
   content?: string;
   zAction?: 'front' | 'back' | 'forward' | 'backward';
+  opacity?: number;
+  strokeDashArray?: number[];
 }
 
 interface PropertyMenuProps {
@@ -33,6 +37,8 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
   onDuplicate,
   onDelete,
 }) => {
+  const [showOpacityPicker, setShowOpacityPicker] = useState(false);
+
   if (!selectedObject) return null;
 
   const rect = propertyMenuRect || selectedObject.getBoundingRect();
@@ -42,13 +48,19 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
   const rawTop = rect.top - 65;
 
   const clampedLeft = Math.max(180, Math.min(window.innerWidth - 180, rawLeft));
-  const clampedTop = Math.max(80, Math.min(window.innerHeight - 80, rawTop < 80 ? rect.top + rect.height + 15 : rawTop));
+  const clampedTop = Math.max(
+    80,
+    Math.min(window.innerHeight - 80, rawTop < 80 ? rect.top + rect.height + 15 : rawTop)
+  );
 
   const isText =
     selectedObject instanceof fabric.IText ||
-    (selectedObject instanceof fabric.Group && selectedObject.item(1) instanceof fabric.IText);
+    (selectedObject instanceof fabric.Group &&
+      (selectedObject.item(1) instanceof fabric.IText ||
+        selectedObject.item(2) instanceof fabric.IText));
 
-  const isSticky = selectedObject instanceof fabric.Group && selectedObject.item(0) instanceof fabric.Rect;
+  const isSticky =
+    selectedObject instanceof fabric.Group && selectedObject.item(0) instanceof fabric.Rect;
 
   const colorPalette = isSticky ? STICKY_COLORS : COLORS;
 
@@ -95,7 +107,9 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
               if (selectedObject instanceof fabric.IText) {
                 selectedObject.enterEditing();
               } else if (selectedObject instanceof fabric.Group) {
-                const text = selectedObject.item(1) as unknown as fabric.IText;
+                const text =
+                  (selectedObject.item(2) as unknown as fabric.IText) ||
+                  (selectedObject.item(1) as unknown as fabric.IText);
                 text?.enterEditing?.();
               }
             }}
@@ -109,27 +123,79 @@ export const PropertyMenu: React.FC<PropertyMenuProps> = ({
         </>
       )}
 
-      {/* Stroke Toggle */}
+      {/* Stroke Toggle & Solid/Dashed selector */}
       {!isSticky && (
-        <button
-          onClick={() => {
-            const currentWidth = selectedObject.strokeWidth || 0;
-            onUpdate({
-              strokeWidth: currentWidth === 0 ? 3 : 0,
-              stroke: (selectedObject.fill as string) || '#1e293b',
-            });
-          }}
-          className={cn(
-            'p-1.5 rounded-lg transition-colors',
-            selectedObject.strokeWidth
-              ? 'bg-indigo-50 text-indigo-600'
-              : 'text-slate-600 hover:bg-slate-100'
+        <>
+          <button
+            onClick={() => {
+              const currentWidth = selectedObject.strokeWidth || 0;
+              onUpdate({
+                strokeWidth: currentWidth === 0 ? 3 : 0,
+                stroke: (selectedObject.fill as string) || '#1e293b',
+              });
+            }}
+            className={cn(
+              'p-1.5 rounded-lg transition-colors',
+              selectedObject.strokeWidth
+                ? 'bg-indigo-50 text-indigo-600'
+                : 'text-slate-600 hover:bg-slate-100'
+            )}
+            title="Toggle Stroke"
+          >
+            <Square size={16} />
+          </button>
+
+          {Boolean(selectedObject.strokeWidth) && (
+            <button
+              onClick={() => {
+                const isDashed = Boolean(selectedObject.strokeDashArray?.length);
+                onUpdate({
+                  strokeDashArray: isDashed ? undefined : [6, 6],
+                });
+              }}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors text-xs font-bold',
+                selectedObject.strokeDashArray?.length
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-slate-600 hover:bg-slate-100'
+              )}
+              title="Toggle Solid / Dashed Stroke"
+            >
+              <Sliders size={16} />
+            </button>
           )}
-          title="Toggle Stroke"
-        >
-          <Square size={16} />
-        </button>
+        </>
       )}
+
+      {/* Opacity Selector Popup */}
+      <div className="relative">
+        <button
+          onClick={() => setShowOpacityPicker(!showOpacityPicker)}
+          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Adjust Opacity"
+        >
+          <Sun size={16} />
+        </button>
+
+        {showOpacityPicker && (
+          <div className="absolute left-0 bottom-10 bg-white/95 backdrop-blur-2xl p-2 rounded-xl shadow-2xl border border-slate-200/80 z-50 flex items-center gap-1 animate-in fade-in zoom-in-95 duration-150">
+            {[1, 0.75, 0.5, 0.25].map((op) => (
+              <button
+                key={op}
+                onClick={() => {
+                  onUpdate({ opacity: op });
+                  setShowOpacityPicker(false);
+                }}
+                className="px-2 py-1 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+              >
+                {Math.round(op * 100)}%
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="w-px h-5 bg-slate-200/80 mx-0.5" />
 
       {/* Z-Index Controls */}
       <div className="flex items-center gap-0.5">
