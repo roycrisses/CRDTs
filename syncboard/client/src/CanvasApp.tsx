@@ -1,5 +1,12 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-09-15
+ * Checks Performed:
+ * - Conducted a comprehensive security and protection review of SyncBoard client & relay server.
+ * - Documented protection architecture, WebSocket risks, CRDT sync safeguards, and hardening roadmap in `PROTECTION_REVIEW.md`.
+ * - Verified image upload size caps (3MB), type restrictions, room name length limits, and base64 null-safety checks.
+ * - Verified production build (`npm run build`) and ESLint checks (`npm run lint`).
+ *
  * Date: 2026-09-14
  * Checks Performed:
  * - Added Figma Jam interactive templates (Kanban, Retrospective, Mind Map, SWOT).
