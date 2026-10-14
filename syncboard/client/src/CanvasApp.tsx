@@ -1,5 +1,14 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-09-16
+ * Checks Performed:
+ * - Conducted protection review and server hardening of WebSocket relay server (`syncboard/server/index.js`).
+ * - Added 5MB `maxPayload` limit to WebSocket server configuration to prevent DoS payload exhaustion attacks.
+ * - Added HTTP security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).
+ * - Updated `PROTECTION_REVIEW.md` documentation with implemented server guardrails and threat analysis.
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Verified server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-09-15
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
