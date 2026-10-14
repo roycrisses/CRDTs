@@ -2,7 +2,7 @@
 
 ## Executive Summary
 SyncBoard is a real-time collaborative whiteboard application built with React, Fabric.js, Yjs (CRDTs), and WebSocket relays (`y-websocket`).
-This document details a comprehensive security and protection review of the codebase, covering architectural boundaries, structural limitations, attack vectors, and recommended production hardening strategies.
+This document details a comprehensive security and protection review of the codebase, covering architectural boundaries, structural limitations, attack vectors, implemented guardrails, and recommended production hardening strategies.
 
 ## 1. Architectural Overview & System Trust Model
 - **Client Tier**: React application running Fabric.js for canvas rendering, Yjs for local CRDT state management, and `y-websocket` / `y-indexeddb` for persistence and sync.
@@ -20,7 +20,7 @@ This document details a comprehensive security and protection review of the code
 
 3. **Client-Side Payload & Size Constraints**:
    - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced purely in the client frontend UI.
-   - The relay server does not enforce maximum message sizes or rate limits on incoming WebSocket frames.
+   - Server-side WebSocket message capping is now set to 5MB (`maxPayload: 5 * 1024 * 1024`) in `index.js`.
 
 4. **Awareness State Spoofing**:
    - User names, colors, cursor positions, and selection IDs sent via Yjs awareness protocol (`awareness.setLocalStateField`) are client-managed and unverified by the server.
@@ -31,6 +31,7 @@ This document details a comprehensive security and protection review of the code
 ## 3. Potential Attack Vectors & Threat Analysis
 - **Denial of Service (DoS) / Resource Exhaustion**:
   - High-frequency WebSocket updates or oversized payloads (e.g., embedding multiple large Base64 images or complex SVG paths) can saturate server network bandwidth and cause client rendering lag or browser crashes (`OOM`).
+  - *Mitigated by*: Server-side `maxPayload` limit of 5MB configured on `ws.Server`.
 - **Data Corruption & Injection**:
   - Direct insertion of malicious or corrupted properties into the Yjs map could trigger runtime JavaScript exceptions when rendered on other connected clients.
 - **Eavesdropping / Unauthorized Room Access**:
@@ -38,13 +39,18 @@ This document details a comprehensive security and protection review of the code
 - **Client Storage Saturation**:
   - Unbounded local state persistence via `IndexeddbPersistence` (`syncboard-v3`) could fill browser IndexedDB storage if millions of objects are appended.
 
-## 4. Implemented Front-End Defense Mechanisms
-To mitigate immediate UI crashes and state corruption, SyncBoard includes the following client-side guardrails:
+## 4. Implemented Defense Mechanisms
+
+### Client-Side Guardrails
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
 - **StrictMode Cleanup**: Explicit unobserving of Yjs maps/text and disposing of Fabric canvas contexts on component unmounting to prevent memory leaks.
 - **Input Sanitization in JSON Import**: Validation of basic object schema before applying imported JSON templates.
+
+### Server-Side Guardrails
+- **WebSocket Frame Capping**: Server enforces `maxPayload: 5 * 1024 * 1024` (5MB) on `ws.Server` to drop oversized frame payloads and protect against buffer overflow / OOM DoS attacks.
+- **Security Response Headers**: HTTP server sets `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`.
 
 ## 5. Recommended Production Hardening Strategies
 To prepare SyncBoard for enterprise/production deployment, the following backend and middleware protections should be implemented:
@@ -53,8 +59,7 @@ To prepare SyncBoard for enterprise/production deployment, the following backend
    - Implement JWT / OAuth token verification on the WebSocket HTTP upgrade request (`http.createServer` / `wss.on('connection')`).
    - Associate room names with authenticated user tenancy and permission models (read-only vs. read-write access).
 
-2. **Server-Side Message Capping & Rate Limiting**:
-   - Configure WebSocket frame size limits (e.g., `maxPayload: 1 * 1024 * 1024` on `ws.Server`).
+2. **Rate Limiting**:
    - Add token-bucket rate limiters per WebSocket connection to throttle high-frequency message floods.
 
 3. **Server-Side CRDT Document Validation**:
