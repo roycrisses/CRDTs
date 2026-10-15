@@ -3,9 +3,9 @@
  * Date: 2026-09-15
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
- * - Documented structural limitations (unauthenticated WS relays, unvalidated CRDT updates, client-side payload constraints) in PROTECTION_REVIEW.md.
- * - Evaluated potential threat vectors (WebSocket spam, awareness spoofing, client memory exhaustion, arbitrary state deletion).
- * - Outlined enterprise production hardening mitigations (JWT WS auth, server payload caps, CRDT schema validation, CSP/CORS controls).
+ * - Implemented WebSocket relay server payload limit (maxPayload: 5MB) and HTTP security response headers in index.js.
+ * - Documented structural limitations, threat vectors, and server/client defense mechanisms in PROTECTION_REVIEW.md.
+ * - Outlined enterprise production hardening mitigations (JWT WS auth, rate limiting, CRDT schema validation, CSP/CORS controls).
  * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
  * - Verified server entry syntax (`node --check index.js`).
  *
