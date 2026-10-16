@@ -2,7 +2,7 @@
 
 ## Executive Summary
 SyncBoard is a real-time collaborative whiteboard application built with React, Fabric.js, Yjs (CRDTs), and WebSocket relays (`y-websocket`).
-This document details a comprehensive security and protection review of the codebase, covering architectural boundaries, structural limitations, attack vectors, and recommended production hardening strategies.
+This document details a comprehensive security and protection review of the codebase, covering architectural boundaries, structural limitations, attack vectors, client/server defense mechanisms, and recommended production hardening strategies.
 
 ## 1. Architectural Overview & System Trust Model
 - **Client Tier**: React application running Fabric.js for canvas rendering, Yjs for local CRDT state management, and `y-websocket` / `y-indexeddb` for persistence and sync.
@@ -15,12 +15,12 @@ This document details a comprehensive security and protection review of the code
    - Any client can connect to `ws://localhost:1234` and subscribe to room document updates (e.g., `syncboard-main`).
 
 2. **Unvalidated CRDT Document Mutability**:
-   - Updates to the Yjs `elements` `Y.Map` and `roomName` `Y.Text` types are processed blindly by the WebSocket relay server without server-side schema verification or type checks.
+   - Updates to the Yjs `elements` `Y.Map` and `roomName` `Y.Text` types are processed by the WebSocket relay server without server-side schema verification or type checks.
    - Malicious clients could inject invalid shape payloads or non-conforming JSON objects into the shared document map.
 
 3. **Client-Side Payload & Size Constraints**:
-   - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced purely in the client frontend UI.
-   - The relay server does not enforce maximum message sizes or rate limits on incoming WebSocket frames.
+   - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced in the client frontend UI.
+   - The relay server enforces a `5MB` (`maxPayload`) WebSocket frame ceiling to mitigate oversized frame transmission.
 
 4. **Awareness State Spoofing**:
    - User names, colors, cursor positions, and selection IDs sent via Yjs awareness protocol (`awareness.setLocalStateField`) are client-managed and unverified by the server.
@@ -38,8 +38,10 @@ This document details a comprehensive security and protection review of the code
 - **Client Storage Saturation**:
   - Unbounded local state persistence via `IndexeddbPersistence` (`syncboard-v3`) could fill browser IndexedDB storage if millions of objects are appended.
 
-## 4. Implemented Front-End Defense Mechanisms
-To mitigate immediate UI crashes and state corruption, SyncBoard includes the following client-side guardrails:
+## 4. Implemented Front-End & Server Defense Mechanisms
+To mitigate immediate UI crashes, frame payload exhaustion, and state corruption, SyncBoard includes the following guardrails:
+- **Server WebSocket Payload Cap**: `5MB` (`maxPayload: 5 * 1024 * 1024`) limit on `WebSocket.Server` in `syncboard/server/index.js` to prevent DoS via frame payload exhaustion.
+- **HTTP Security Headers**: Server responses configured with `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`.
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
@@ -54,7 +56,6 @@ To prepare SyncBoard for enterprise/production deployment, the following backend
    - Associate room names with authenticated user tenancy and permission models (read-only vs. read-write access).
 
 2. **Server-Side Message Capping & Rate Limiting**:
-   - Configure WebSocket frame size limits (e.g., `maxPayload: 1 * 1024 * 1024` on `ws.Server`).
    - Add token-bucket rate limiters per WebSocket connection to throttle high-frequency message floods.
 
 3. **Server-Side CRDT Document Validation**:
