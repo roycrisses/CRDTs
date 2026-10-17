@@ -1,5 +1,14 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-09-16
+ * Checks Performed:
+ * - Conducted protection review and hardened WebSocket relay server (`syncboard/server/index.js`).
+ * - Configured WebSocket server `maxPayload: 5 * 1024 * 1024` (5MB frame payload cap) to protect against DoS message frame floods.
+ * - Added HTTP security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`) on relay server responses.
+ * - Updated PROTECTION_REVIEW.md with current server-side payload caps and defense architecture controls.
+ * - Verified client production build (`npm run build`) and ESLint style checks (`npm run lint`).
+ * - Verified server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-09-15
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.

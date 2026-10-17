@@ -19,8 +19,8 @@ This document details a comprehensive security and protection review of the code
    - Malicious clients could inject invalid shape payloads or non-conforming JSON objects into the shared document map.
 
 3. **Client-Side Payload & Size Constraints**:
-   - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced purely in the client frontend UI.
-   - The relay server does not enforce maximum message sizes or rate limits on incoming WebSocket frames.
+   - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced in the client frontend UI.
+   - The relay server enforces a maximum frame payload limit (`5MB`) via `maxPayload: 5 * 1024 * 1024` on the WebSocket server to prevent payload exhaustion attacks.
 
 4. **Awareness State Spoofing**:
    - User names, colors, cursor positions, and selection IDs sent via Yjs awareness protocol (`awareness.setLocalStateField`) are client-managed and unverified by the server.
@@ -38,8 +38,14 @@ This document details a comprehensive security and protection review of the code
 - **Client Storage Saturation**:
   - Unbounded local state persistence via `IndexeddbPersistence` (`syncboard-v3`) could fill browser IndexedDB storage if millions of objects are appended.
 
-## 4. Implemented Front-End Defense Mechanisms
-To mitigate immediate UI crashes and state corruption, SyncBoard includes the following client-side guardrails:
+## 4. Implemented Defense & Security Mechanisms
+To mitigate immediate UI crashes, state corruption, and DoS attacks, SyncBoard includes the following defense mechanisms:
+
+### Server-Side Protections (`syncboard/server/index.js`)
+- **WebSocket Payload Limits**: Enforced 5MB (`maxPayload: 5 * 1024 * 1024`) WebSocket frame threshold to prevent memory exhaustion from oversized message frames.
+- **HTTP Security Response Headers**: Configured `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` on server responses to mitigate MIME-sniffing and clickjacking vulnerabilities.
+
+### Client-Side Guardrails (`syncboard/client/src/`)
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
