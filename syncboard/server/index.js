@@ -3,11 +3,18 @@ const http = require('http');
 const { setupWSConnection } = require('y-websocket/bin/utils');
 
 const server = http.createServer((request, response) => {
-  response.writeHead(200, { 'Content-Type': 'text/plain' });
+  response.writeHead(200, {
+    'Content-Type': 'text/plain',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY'
+  });
   response.end('SyncBoard Yjs Relay Server');
 });
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({
+  server,
+  maxPayload: 5 * 1024 * 1024
+});
 
 wss.on('connection', (conn, req) => {
   setupWSConnection(conn, req);
