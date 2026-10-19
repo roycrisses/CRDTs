@@ -2,7 +2,7 @@
 
 ## Executive Summary
 SyncBoard is a real-time collaborative whiteboard application built with React, Fabric.js, Yjs (CRDTs), and WebSocket relays (`y-websocket`).
-This document details a comprehensive security and protection review of the codebase, covering architectural boundaries, structural limitations, attack vectors, and recommended production hardening strategies.
+This document details a comprehensive security and protection review of the codebase, covering architectural boundaries, structural limitations, attack vectors, and implemented/recommended production hardening strategies.
 
 ## 1. Architectural Overview & System Trust Model
 - **Client Tier**: React application running Fabric.js for canvas rendering, Yjs for local CRDT state management, and `y-websocket` / `y-indexeddb` for persistence and sync.
@@ -19,8 +19,8 @@ This document details a comprehensive security and protection review of the code
    - Malicious clients could inject invalid shape payloads or non-conforming JSON objects into the shared document map.
 
 3. **Client-Side Payload & Size Constraints**:
-   - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced purely in the client frontend UI.
-   - The relay server does not enforce maximum message sizes or rate limits on incoming WebSocket frames.
+   - Image upload limits (`3MB`) in `Toolbar.tsx` and room name length validation in `TopBar.tsx` are enforced in the client frontend UI.
+   - The relay server enforces a maximum WebSocket message payload limit (`5MB`) to prevent memory/frame exhaustion.
 
 4. **Awareness State Spoofing**:
    - User names, colors, cursor positions, and selection IDs sent via Yjs awareness protocol (`awareness.setLocalStateField`) are client-managed and unverified by the server.
@@ -38,8 +38,9 @@ This document details a comprehensive security and protection review of the code
 - **Client Storage Saturation**:
   - Unbounded local state persistence via `IndexeddbPersistence` (`syncboard-v3`) could fill browser IndexedDB storage if millions of objects are appended.
 
-## 4. Implemented Front-End Defense Mechanisms
-To mitigate immediate UI crashes and state corruption, SyncBoard includes the following client-side guardrails:
+## 4. Implemented Defense Mechanisms
+To mitigate immediate UI crashes, state corruption, and server frame exhaustion, SyncBoard includes the following guardrails:
+- **Server Payload Capping & Security Headers**: The WebSocket relay server in `syncboard/server/index.js` enforces a 5MB payload limit (`maxPayload: 5 * 1024 * 1024`) on WebSocket connections and serves security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
@@ -54,8 +55,7 @@ To prepare SyncBoard for enterprise/production deployment, the following backend
    - Associate room names with authenticated user tenancy and permission models (read-only vs. read-write access).
 
 2. **Server-Side Message Capping & Rate Limiting**:
-   - Configure WebSocket frame size limits (e.g., `maxPayload: 1 * 1024 * 1024` on `ws.Server`).
-   - Add token-bucket rate limiters per WebSocket connection to throttle high-frequency message floods.
+   - Enforce token-bucket rate limiters per WebSocket connection to throttle high-frequency message floods.
 
 3. **Server-Side CRDT Document Validation**:
    - Implement a custom server provider or `y-websocket` hook to validate incoming document update transactions against defined JSON schema definitions before broadcasting.
