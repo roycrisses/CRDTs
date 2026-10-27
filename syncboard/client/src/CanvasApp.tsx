@@ -1,5 +1,14 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-10-27
+ * Checks Performed:
+ * - Conducted comprehensive security & protection review of client and relay server architectures.
+ * - Implemented server-side WebSocket protection guardrails in `syncboard/server/index.js` (5MB max frame payload limit, sliding-window rate limiting, ping/pong zombie socket cleanup, and HTTP security headers).
+ * - Updated PROTECTION_REVIEW.md to document server guardrails and current security status.
+ * - Verified front-end defense guardrails (base64 image null-safety checks, room name length limits, file size caps).
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Verified WebSocket relay server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-09-15
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
