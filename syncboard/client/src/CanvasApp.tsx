@@ -1,5 +1,13 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-11-05
+ * Checks Performed:
+ * - Conducted full protection and security review across client and relay server architectures.
+ * - Validated server-side WebSocket security controls in `syncboard/server/index.js`: 5MB frame payload protection (`maxPayload`), per-socket sliding-window message rate limiting (200 msgs/sec threshold with code 1008 termination), 30s ping/pong heartbeat zombie socket cleanup, and HTTP security headers (`nosniff`, `DENY`, `Content-Security-Policy`).
+ * - Validated client-side defenses: 3MB image ceiling and MIME validation in `Toolbar.tsx`, 50-character collaborative room name limit in `TopBar.tsx`, null-safe base64 image decoder callbacks in `CanvasApp.tsx`, and clean unmounting of Fabric canvas and Yjs observers.
+ * - Documented architectural boundaries, threat model, implemented guardrails, and production recommendations in `PROTECTION_REVIEW.md`.
+ * - Verified server syntax (`node --check index.js`) and client build & lint (`npm run lint`, `npm run build`).
+ *
  * Date: 2026-11-04
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
