@@ -55,7 +55,7 @@ This document details a comprehensive security and protection review of the code
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
 - **StrictMode Cleanup**: Explicit unobserving of Yjs maps/text, unregistering awareness handlers, and disposing of Fabric canvas contexts on component unmounting to prevent memory leaks and dangling listeners.
-- **Input Sanitization in JSON Import**: Validation of basic object schema before applying imported JSON templates.
+- **Input Sanitization in JSON Import**: Validation of object schema, 500-element batch cap, string length limits (max 10,000 characters for content), and oversized image payload rejection before applying imported JSON templates.
 
 ## 5. Recommended Production Hardening Strategies
 To prepare SyncBoard for enterprise/production multi-tenant deployment, the following additional protections should be considered:

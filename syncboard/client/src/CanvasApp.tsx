@@ -1,5 +1,15 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-11-07
+ * Checks Performed:
+ * - Conducted comprehensive security & protection review of client and relay server architectures.
+ * - Documented architectural limitations, threat analysis, implemented guardrails, and enterprise mitigations in PROTECTION_REVIEW.md.
+ * - Hardened JSON board backup import with strict element validation, 500-element batch cap, string length limits, and oversized payload rejection in `CanvasApp.tsx`.
+ * - Verified server-side WebSocket protections in `syncboard/server/index.js` (5MB maxPayload, 200 msgs/sec sliding-window rate limit, 30s ping/pong heartbeat zombie cleanup, and security headers).
+ * - Verified client-side defense mechanisms (3MB file upload limit, 50-char room name constraint, null-safe image decoders, and strict unmount cleanup).
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Verified server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-11-04
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
@@ -1253,15 +1263,52 @@ export const CanvasApp = () => {
       try {
         const content = e.target?.result as string;
         const elements = JSON.parse(content) as ElementData[];
-        if (Array.isArray(elements)) {
-          elements.forEach((el) => {
-            if (el.id && el.type && el.position) {
-              const newId = crypto.randomUUID();
-              localCreatedIdsRef.current.add(newId);
-              yElementsRef.current?.set(newId, { ...el, id: newId });
-            }
-          });
+        if (!Array.isArray(elements)) {
+          alert('Invalid JSON format: expected an array of elements.');
+          return;
         }
+
+        const validTypes = new Set([
+          'rectangle',
+          'circle',
+          'triangle',
+          'diamond',
+          'text',
+          'sticky',
+          'path',
+          'arrow',
+          'stamp',
+          'image',
+          'frame',
+          'badge',
+        ]);
+
+        const MAX_IMPORT_ITEMS = 500;
+        const itemsToImport = elements.slice(0, MAX_IMPORT_ITEMS);
+
+        itemsToImport.forEach((el) => {
+          if (
+            el &&
+            typeof el === 'object' &&
+            typeof el.type === 'string' &&
+            validTypes.has(el.type) &&
+            el.position &&
+            typeof el.position.x === 'number' &&
+            typeof el.position.y === 'number'
+          ) {
+            // Guard against oversized string payloads in content or imageUrl
+            if (el.content && typeof el.content === 'string' && el.content.length > 10000) {
+              el.content = el.content.slice(0, 10000);
+            }
+            if (el.imageUrl && typeof el.imageUrl === 'string' && el.imageUrl.length > 5 * 1024 * 1024) {
+              return; // skip oversized image payload
+            }
+
+            const newId = crypto.randomUUID();
+            localCreatedIdsRef.current.add(newId);
+            yElementsRef.current?.set(newId, { ...el, id: newId });
+          }
+        });
       } catch {
         alert('Invalid JSON file format.');
       }
