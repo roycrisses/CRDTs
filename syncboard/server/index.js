@@ -24,10 +24,22 @@ const wss = new WebSocket.Server({
 const RATE_LIMIT_WINDOW_MS = 1000;
 const MAX_MESSAGES_PER_WINDOW = 200;
 
+server.on('error', (err) => {
+  console.error('[Server Error]', err);
+});
+
+wss.on('error', (err) => {
+  console.error('[WebSocket Server Error]', err);
+});
+
 wss.on('connection', (conn, req) => {
   conn.isAlive = true;
   conn.on('pong', () => {
     conn.isAlive = true;
+  });
+
+  conn.on('error', (err) => {
+    console.warn('[Socket Error]', err?.message || err);
   });
 
   // Rate limiting message tracking
