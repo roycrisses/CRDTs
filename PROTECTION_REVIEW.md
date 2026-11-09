@@ -49,13 +49,20 @@ This document details a comprehensive security and protection review of the code
 - **Sliding-Window Message Rate Limiting**: Enforced rate limiting (max 200 messages per 1-second window per connection); sockets violating the threshold are closed with code `1008` (Policy Violation).
 - **Zombie Socket Heartbeat & Cleanup**: Implemented 30-second ping/pong heartbeat interval that detects dead connections and terminates them to prevent server file descriptor and memory leaks.
 - **HTTP Security Headers**: Set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and Content Security Policy headers on the HTTP upgrade server.
+- **Error Resilience & Safe Termination**: Implemented error handlers on HTTP server, WebSocket server, and individual client connections (`conn.on('error')`), preventing uncaught socket exceptions from crashing the relay process. Configured graceful shutdown listeners for `SIGTERM` / `SIGINT`.
 
 ### Client-Side Guardrails (`syncboard/client/src/`)
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
+- **JSON Import Hardening & Sanitization**:
+  - 5MB maximum file size check before parsing into memory.
+  - 500-element maximum batch cap to prevent client-side DoS or browser lockups.
+  - Strict type whitelisting (`rectangle`, `circle`, `triangle`, `diamond`, `text`, `sticky`, `path`, `arrow`, `stamp`, `image`, `frame`, `badge`).
+  - Finite number validation on coordinates (`position.x`, `position.y`) and dimensions (`size.width`, `size.height`).
+  - Content length sanitization (max 10,000 characters).
+  - Safe protocol verification for `imageUrl` (`data:image/`, `http://`, `https://`) to block malicious schemes (e.g., `javascript:`).
 - **StrictMode Cleanup**: Explicit unobserving of Yjs maps/text, unregistering awareness handlers, and disposing of Fabric canvas contexts on component unmounting to prevent memory leaks and dangling listeners.
-- **Input Sanitization in JSON Import**: Validation of basic object schema before applying imported JSON templates.
 
 ## 5. Recommended Production Hardening Strategies
 To prepare SyncBoard for enterprise/production multi-tenant deployment, the following additional protections should be considered:

@@ -24,8 +24,22 @@ const wss = new WebSocket.Server({
 const RATE_LIMIT_WINDOW_MS = 1000;
 const MAX_MESSAGES_PER_WINDOW = 200;
 
+server.on('error', (err) => {
+  console.error('[Protection] HTTP server error:', err.message);
+});
+
+wss.on('error', (err) => {
+  console.error('[Protection] WebSocket server error:', err.message);
+});
+
 wss.on('connection', (conn, req) => {
   conn.isAlive = true;
+
+  // Handle socket-level errors gracefully to prevent uncaught exceptions
+  conn.on('error', (err) => {
+    console.warn('[Protection] Client socket error:', err.message);
+  });
+
   conn.on('pong', () => {
     conn.isAlive = true;
   });
@@ -35,7 +49,7 @@ wss.on('connection', (conn, req) => {
   let windowStart = Date.now();
 
   // Intercept incoming messages to apply rate limiting guardrails
-  conn.on('message', (message) => {
+  conn.on('message', () => {
     const now = Date.now();
     if (now - windowStart > RATE_LIMIT_WINDOW_MS) {
       windowStart = now;
@@ -72,3 +86,21 @@ const PORT = 1234;
 server.listen(PORT, () => {
   console.log(`📡 Protected WebSocket server running at ws://localhost:${PORT}`);
 });
+
+// Graceful shutdown handling
+const handleShutdown = (signal) => {
+  console.log(`[Protection] Received ${signal}. Shutting down WebSocket server gracefully...`);
+  clearInterval(heartbeatInterval);
+  wss.clients.forEach((client) => {
+    client.close(1001, 'Server shutting down');
+  });
+  wss.close(() => {
+    server.close(() => {
+      console.log('[Protection] Server shutdown complete.');
+      process.exit(0);
+    });
+  });
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));

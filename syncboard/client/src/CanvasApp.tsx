@@ -1,5 +1,14 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-11-09
+ * Checks Performed:
+ * - Conducted comprehensive security and protection review across client and relay server architectures.
+ * - Updated PROTECTION_REVIEW.md with reinforced client-side validation and server error resilience specifications.
+ * - Hardened client-side JSON board import in `syncboard/client/src/CanvasApp.tsx`: enforced 5MB file ceiling, 500-element maximum batch cap, element type whitelist validation, finite coordinate bounds, safe image URL protocol checks (`data:image/`, `http://`, `https://`), and 10,000 character string length limits.
+ * - Hardened server-side WebSocket relay in `syncboard/server/index.js` with HTTP/WebSocket/connection error event listeners and graceful shutdown handling for `SIGTERM` / `SIGINT`.
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Verified server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-11-04
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
@@ -1248,20 +1257,98 @@ export const CanvasApp = () => {
 
   const handleImportJSON = (file: File) => {
     if (!yElementsRef.current) return;
+
+    // Protection: Validate file size (max 5MB)
+    const MAX_JSON_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_JSON_SIZE) {
+      alert('File size exceeds 5MB limit.');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const elements = JSON.parse(content) as ElementData[];
-        if (Array.isArray(elements)) {
-          elements.forEach((el) => {
-            if (el.id && el.type && el.position) {
-              const newId = crypto.randomUUID();
-              localCreatedIdsRef.current.add(newId);
-              yElementsRef.current?.set(newId, { ...el, id: newId });
-            }
-          });
+        const elements = JSON.parse(content) as unknown;
+        if (!Array.isArray(elements)) {
+          alert('Invalid JSON format: expected an array of elements.');
+          return;
         }
+
+        // Protection: Limit number of imported elements to 500 to prevent DoS / browser freeze
+        const MAX_ELEMENTS = 500;
+        const validTypes = new Set([
+          'rectangle',
+          'circle',
+          'triangle',
+          'diamond',
+          'text',
+          'sticky',
+          'path',
+          'arrow',
+          'stamp',
+          'image',
+          'frame',
+          'badge',
+        ]);
+
+        const elementsToImport = elements.slice(0, MAX_ELEMENTS);
+        elementsToImport.forEach((el) => {
+          if (
+            el &&
+            typeof el === 'object' &&
+            typeof (el as ElementData).type === 'string' &&
+            validTypes.has((el as ElementData).type) &&
+            (el as ElementData).position &&
+            Number.isFinite((el as ElementData).position.x) &&
+            Number.isFinite((el as ElementData).position.y) &&
+            (el as ElementData).size &&
+            Number.isFinite((el as ElementData).size.width) &&
+            Number.isFinite((el as ElementData).size.height)
+          ) {
+            const safeElement: ElementData = {
+              id: crypto.randomUUID(),
+              type: (el as ElementData).type,
+              position: {
+                x: Number((el as ElementData).position.x),
+                y: Number((el as ElementData).position.y),
+              },
+              size: {
+                width: Math.max(1, Number((el as ElementData).size.width)),
+                height: Math.max(1, Number((el as ElementData).size.height)),
+                radius: (el as ElementData).size.radius !== undefined ? Number((el as ElementData).size.radius) : undefined,
+              },
+              style: {
+                fill: typeof (el as ElementData).style?.fill === 'string' ? (el as ElementData).style.fill : '#ffffff',
+                stroke: typeof (el as ElementData).style?.stroke === 'string' ? (el as ElementData).style.stroke : undefined,
+                strokeWidth: typeof (el as ElementData).style?.strokeWidth === 'number' ? (el as ElementData).style.strokeWidth : undefined,
+                fontFamily: typeof (el as ElementData).style?.fontFamily === 'string' ? (el as ElementData).style?.fontFamily?.slice(0, 50) : undefined,
+                strokeDashArray: Array.isArray((el as ElementData).style?.strokeDashArray) ? (el as ElementData).style.strokeDashArray : undefined,
+                opacity: typeof (el as ElementData).style?.opacity === 'number' ? (el as ElementData).style.opacity : undefined,
+              },
+            };
+
+            // Content sanitization: limit string length to 10000 chars
+            if (typeof (el as ElementData).content === 'string') {
+              safeElement.content = (el as ElementData).content!.slice(0, 10000);
+            }
+
+            // Image URL scheme verification: safe data URLs or http/https
+            if (typeof (el as ElementData).imageUrl === 'string') {
+              const url = (el as ElementData).imageUrl!;
+              if (url.startsWith('data:image/') || url.startsWith('http://') || url.startsWith('https://')) {
+                safeElement.imageUrl = url;
+              }
+            }
+
+            if (Array.isArray((el as ElementData).path)) {
+              safeElement.path = (el as ElementData).path;
+            }
+
+            localCreatedIdsRef.current.add(safeElement.id);
+            yElementsRef.current?.set(safeElement.id, safeElement);
+          }
+        });
       } catch {
         alert('Invalid JSON file format.');
       }
