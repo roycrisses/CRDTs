@@ -1,5 +1,15 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-11-10
+ * Checks Performed:
+ * - Completed comprehensive security & protection review across client and server architectures.
+ * - Hardened server-side socket and HTTP error handling in `syncboard/server/index.js` to prevent unhandled exception crashes.
+ * - Added graceful SIGTERM/SIGINT shutdown handling with client notification and connection teardown.
+ * - Hardened client-side JSON backup import in `CanvasApp.tsx` with 5MB file size limit, 500-element batch cap, element type whitelist validation, finite coordinate bounds, safe image URL protocol checks, and string length caps.
+ * - Updated PROTECTION_REVIEW.md with newly implemented guardrails.
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Verified server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-11-04
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
@@ -1248,19 +1258,81 @@ export const CanvasApp = () => {
 
   const handleImportJSON = (file: File) => {
     if (!yElementsRef.current) return;
+
+    // Protection: file size check (5MB ceiling)
+    const MAX_IMPORT_SIZE_BYTES = 5 * 1024 * 1024;
+    if (file.size > MAX_IMPORT_SIZE_BYTES) {
+      alert('Import file exceeds maximum allowed size (5MB).');
+      return;
+    }
+
+    const VALID_TYPES = new Set([
+      'rectangle',
+      'circle',
+      'triangle',
+      'diamond',
+      'text',
+      'sticky',
+      'path',
+      'arrow',
+      'stamp',
+      'image',
+      'frame',
+      'badge',
+    ]);
+
+    const isValidImageUrl = (url?: string): boolean => {
+      if (!url) return false;
+      if (url.startsWith('data:image/')) return true;
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    };
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
         const elements = JSON.parse(content) as ElementData[];
-        if (Array.isArray(elements)) {
-          elements.forEach((el) => {
-            if (el.id && el.type && el.position) {
-              const newId = crypto.randomUUID();
-              localCreatedIdsRef.current.add(newId);
-              yElementsRef.current?.set(newId, { ...el, id: newId });
-            }
+        if (!Array.isArray(elements)) {
+          alert('Invalid backup file: Root must be an array of elements.');
+          return;
+        }
+
+        // Protection: cap batch import count to 500 elements
+        const batch = elements.slice(0, 500);
+
+        let importedCount = 0;
+        batch.forEach((el) => {
+          if (!el || typeof el !== 'object') return;
+          if (!el.type || !VALID_TYPES.has(el.type)) return;
+          if (!el.position || typeof el.position.x !== 'number' || typeof el.position.y !== 'number') return;
+          if (!Number.isFinite(el.position.x) || !Number.isFinite(el.position.y)) return;
+          if (Math.abs(el.position.x) > 100000 || Math.abs(el.position.y) > 100000) return;
+
+          // Validate image URL if type is image
+          if (el.type === 'image' && el.imageUrl && !isValidImageUrl(el.imageUrl)) {
+            return;
+          }
+
+          // Bound content string length
+          const sanitizedContent = typeof el.content === 'string' ? el.content.slice(0, 10000) : el.content;
+
+          const newId = crypto.randomUUID();
+          localCreatedIdsRef.current.add(newId);
+          yElementsRef.current?.set(newId, {
+            ...el,
+            id: newId,
+            content: sanitizedContent,
           });
+          importedCount += 1;
+        });
+
+        if (elements.length > 500) {
+          alert(`Imported ${importedCount} elements (capped at 500 maximum items).`);
         }
       } catch {
         alert('Invalid JSON file format.');
