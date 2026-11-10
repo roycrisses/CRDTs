@@ -49,7 +49,21 @@ wss.on('connection', (conn, req) => {
     }
   });
 
+  conn.on('error', (err) => {
+    console.error('[Protection] Connection socket error:', err.message);
+  });
+
   setupWSConnection(conn, req);
+});
+
+// WebSocket Server error handler
+wss.on('error', (err) => {
+  console.error('[Protection] WebSocket server error:', err.message);
+});
+
+// HTTP Server error handler
+server.on('error', (err) => {
+  console.error('[Protection] HTTP server error:', err.message);
 });
 
 // Heartbeat ping interval to clean up stale zombie connections
@@ -67,6 +81,36 @@ const heartbeatInterval = setInterval(() => {
 wss.on('close', () => {
   clearInterval(heartbeatInterval);
 });
+
+// Graceful shutdown handling
+const handleShutdown = (signal) => {
+  console.log(`\n[Protection] Received ${signal}. Initiating graceful shutdown...`);
+  clearInterval(heartbeatInterval);
+
+  wss.clients.forEach((client) => {
+    try {
+      client.close(1001, 'Server shutting down');
+    } catch {
+      client.terminate();
+    }
+  });
+
+  wss.close(() => {
+    server.close(() => {
+      console.log('[Protection] Server shutdown completed.');
+      process.exit(0);
+    });
+  });
+
+  // Force close after 5 seconds if not closed
+  setTimeout(() => {
+    console.warn('[Protection] Forced shutdown after timeout.');
+    process.exit(1);
+  }, 5000).unref();
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 const PORT = 1234;
 server.listen(PORT, () => {

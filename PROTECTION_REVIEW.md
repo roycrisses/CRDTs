@@ -49,13 +49,21 @@ This document details a comprehensive security and protection review of the code
 - **Sliding-Window Message Rate Limiting**: Enforced rate limiting (max 200 messages per 1-second window per connection); sockets violating the threshold are closed with code `1008` (Policy Violation).
 - **Zombie Socket Heartbeat & Cleanup**: Implemented 30-second ping/pong heartbeat interval that detects dead connections and terminates them to prevent server file descriptor and memory leaks.
 - **HTTP Security Headers**: Set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and Content Security Policy headers on the HTTP upgrade server.
+- **Server and Socket Error Handling**: Added explicit `error` listeners on the WebSocket server, HTTP server, and client connection sockets to prevent process termination on unexpected socket disruptions.
+- **Graceful Shutdown Handling**: Configured `SIGTERM` and `SIGINT` handlers that close the heartbeat timer, notify and terminate client connections gracefully, and close HTTP/WebSocket server listeners with a fallback timeout.
 
 ### Client-Side Guardrails (`syncboard/client/src/`)
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
 - **StrictMode Cleanup**: Explicit unobserving of Yjs maps/text, unregistering awareness handlers, and disposing of Fabric canvas contexts on component unmounting to prevent memory leaks and dangling listeners.
-- **Input Sanitization in JSON Import**: Validation of basic object schema before applying imported JSON templates.
+- **Input Sanitization in JSON Import**: Strict validation in `handleImportJSON`:
+  - 5MB maximum file size ceiling.
+  - 500-element batch cap per import to prevent canvas saturation or DoS.
+  - Whitelist validation for element types (`rectangle`, `circle`, `triangle`, `diamond`, `text`, `sticky`, `path`, `arrow`, `stamp`, `image`, `frame`, `badge`).
+  - Finite coordinate bounds checking (`|x|, |y| <= 100,000`).
+  - Safe URL protocol enforcement on images (`http:`, `https:`, and `data:image/` only; blocking dangerous URI schemes).
+  - Content string length limits (capped at 10,000 characters).
 
 ## 5. Recommended Production Hardening Strategies
 To prepare SyncBoard for enterprise/production multi-tenant deployment, the following additional protections should be considered:
