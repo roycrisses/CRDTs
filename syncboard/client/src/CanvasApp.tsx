@@ -1,5 +1,15 @@
 /*
  * Daily Audit & Fixes Log:
+ * Date: 2026-11-11
+ * Checks Performed:
+ * - Conducted comprehensive security & protection review of client and relay server architectures.
+ * - Updated PROTECTION_REVIEW.md with complete threat analysis, server protections, and client input validations.
+ * - Hardened server-side WebSocket protections in `syncboard/server/index.js` with socket/server error handlers (`conn.on('error')`, `wss.on('error')`, `server.on('error')`) and graceful shutdown handling (`SIGTERM`/`SIGINT`).
+ * - Hardened client-side JSON import sanitization with 5MB file cap, 500-element batch limits, element type whitelist, numeric coordinate and size bounds validation, 10,000-character content limit, and safe image URL protocol checks.
+ * - Confirmed existing defense mechanisms: 3MB image upload limit, 50-character room name limit, null-safe base64 decoders, 5MB maxPayload and 200 msgs/sec rate limiting.
+ * - Verified client production build (`npm run build`) and ESLint checks (`npm run lint`).
+ * - Verified server entry syntax (`node --check index.js`).
+ *
  * Date: 2026-11-04
  * Checks Performed:
  * - Conducted comprehensive security & protection review of client and relay server architectures.
@@ -1248,19 +1258,145 @@ export const CanvasApp = () => {
 
   const handleImportJSON = (file: File) => {
     if (!yElementsRef.current) return;
+
+    // Protection: file size check (5MB ceiling)
+    const MAX_JSON_FILE_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_JSON_FILE_SIZE) {
+      alert('Import failed: File exceeds maximum allowed size (5MB).');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const elements = JSON.parse(content) as ElementData[];
-        if (Array.isArray(elements)) {
-          elements.forEach((el) => {
-            if (el.id && el.type && el.position) {
-              const newId = crypto.randomUUID();
-              localCreatedIdsRef.current.add(newId);
-              yElementsRef.current?.set(newId, { ...el, id: newId });
+        const parsed = JSON.parse(content);
+        if (!Array.isArray(parsed)) {
+          alert('Invalid JSON format: expected an array of elements.');
+          return;
+        }
+
+        // Protection: batch element limit (max 500 items per import)
+        const MAX_IMPORT_ITEMS = 500;
+        if (parsed.length > MAX_IMPORT_ITEMS) {
+          alert(`Import failed: File contains too many elements (max ${MAX_IMPORT_ITEMS}).`);
+          return;
+        }
+
+        const allowedTypes = new Set([
+          'rectangle',
+          'circle',
+          'triangle',
+          'diamond',
+          'text',
+          'sticky',
+          'path',
+          'arrow',
+          'stamp',
+          'image',
+          'frame',
+          'badge',
+        ]);
+
+        let validCount = 0;
+        parsed.forEach((el: unknown) => {
+          if (!el || typeof el !== 'object') return;
+          const candidate = el as Record<string, unknown>;
+
+          if (
+            typeof candidate.type === 'string' &&
+            allowedTypes.has(candidate.type) &&
+            candidate.position &&
+            typeof candidate.position === 'object' &&
+            candidate.size &&
+            typeof candidate.size === 'object'
+          ) {
+            const pos = candidate.position as Record<string, unknown>;
+            const size = candidate.size as Record<string, unknown>;
+
+            const x = Number(pos.x);
+            const y = Number(pos.y);
+            const width = Number(size.width);
+            const height = Number(size.height);
+
+            // Protection: validate numeric coordinate and dimension bounds
+            if (
+              !Number.isFinite(x) ||
+              !Number.isFinite(y) ||
+              !Number.isFinite(width) ||
+              !Number.isFinite(height) ||
+              width < 0 ||
+              height < 0 ||
+              width > 20000 ||
+              height > 20000
+            ) {
+              return;
             }
-          });
+
+            // Protection: validate content length
+            let sanitizedContent = candidate.content;
+            if (typeof sanitizedContent === 'string' && sanitizedContent.length > 10000) {
+              sanitizedContent = sanitizedContent.slice(0, 10000);
+            }
+
+            // Protection: validate image URLs
+            let sanitizedImageUrl: string | undefined;
+            if (typeof candidate.imageUrl === 'string') {
+              const url = candidate.imageUrl.trim();
+              if (url.startsWith('data:image/') || url.startsWith('https://') || url.startsWith('http://')) {
+                sanitizedImageUrl = url;
+              }
+            }
+
+            const newId = crypto.randomUUID();
+            localCreatedIdsRef.current.add(newId);
+
+            const sanitizedData: ElementData = {
+              id: newId,
+              type: candidate.type as ElementData['type'],
+              position: { x, y },
+              size: {
+                width,
+                height,
+                ...(Number.isFinite(Number(size.radius)) ? { radius: Number(size.radius) } : {}),
+              },
+              style: (candidate.style && typeof candidate.style === 'object'
+                ? {
+                    fill: typeof (candidate.style as Record<string, unknown>).fill === 'string'
+                      ? ((candidate.style as Record<string, unknown>).fill as string)
+                      : '#3b82f6',
+                    stroke: typeof (candidate.style as Record<string, unknown>).stroke === 'string'
+                      ? ((candidate.style as Record<string, unknown>).stroke as string)
+                      : undefined,
+                    strokeWidth: Number.isFinite(Number((candidate.style as Record<string, unknown>).strokeWidth))
+                      ? Number((candidate.style as Record<string, unknown>).strokeWidth)
+                      : undefined,
+                    fontFamily: typeof (candidate.style as Record<string, unknown>).fontFamily === 'string'
+                      ? ((candidate.style as Record<string, unknown>).fontFamily as string)
+                      : 'Inter, sans-serif',
+                    strokeDashArray: Array.isArray((candidate.style as Record<string, unknown>).strokeDashArray)
+                      ? ((candidate.style as Record<string, unknown>).strokeDashArray as number[])
+                      : undefined,
+                    opacity: Number.isFinite(Number((candidate.style as Record<string, unknown>).opacity))
+                      ? Number((candidate.style as Record<string, unknown>).opacity)
+                      : 1,
+                  }
+                : { fill: '#3b82f6' }),
+              ...(sanitizedContent !== undefined ? { content: sanitizedContent as string } : {}),
+              ...(sanitizedImageUrl ? { imageUrl: sanitizedImageUrl } : {}),
+              ...(Array.isArray(candidate.path) ? { path: candidate.path as (string | number)[][] } : {}),
+              ...(Number.isFinite(Number(candidate.scaleX)) ? { scaleX: Number(candidate.scaleX) } : {}),
+              ...(Number.isFinite(Number(candidate.scaleY)) ? { scaleY: Number(candidate.scaleY) } : {}),
+              ...(Number.isFinite(Number(candidate.zIndex)) ? { zIndex: Number(candidate.zIndex) } : {}),
+            };
+
+            yElementsRef.current?.set(newId, sanitizedData);
+            validCount += 1;
+          }
+        });
+
+        if (validCount === 0) {
+          alert('Import completed: No valid canvas elements were found in the file.');
         }
       } catch {
         alert('Invalid JSON file format.');
