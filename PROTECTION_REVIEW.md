@@ -47,15 +47,23 @@ This document details a comprehensive security and protection review of the code
 ### Server-Side Guardrails (`syncboard/server/index.js`)
 - **WebSocket Frame Size Capping**: Configured `maxPayload: 5 * 1024 * 1024` (5MB) on the WebSocket server to prevent oversized message frame attacks.
 - **Sliding-Window Message Rate Limiting**: Enforced rate limiting (max 200 messages per 1-second window per connection); sockets violating the threshold are closed with code `1008` (Policy Violation).
+- **Socket & Server Error Handlers**: Error handlers on connections (`conn.on('error')`), WebSocket server (`wss.on('error')`), and HTTP server (`server.on('error')`) to safely catch and log socket dropouts or network errors without crashing the Node.js process.
+- **Graceful Shutdown**: Handled `SIGTERM` and `SIGINT` signals to close active client sockets (code `1001`), clear heartbeat timers, and cleanly shut down servers.
 - **Zombie Socket Heartbeat & Cleanup**: Implemented 30-second ping/pong heartbeat interval that detects dead connections and terminates them to prevent server file descriptor and memory leaks.
 - **HTTP Security Headers**: Set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and Content Security Policy headers on the HTTP upgrade server.
 
 ### Client-Side Guardrails (`syncboard/client/src/`)
+- **JSON Import Strict Sanitization & Bounds**:
+  - File size cap enforcing 5MB limit before reading.
+  - Maximum 500 element batch cap to prevent browser freezes or memory crashes.
+  - Whitelist validation of element types (`rectangle`, `circle`, `triangle`, `diamond`, `text`, `sticky`, `path`, `arrow`, `stamp`, `image`, `frame`, `badge`).
+  - Finite coordinate and size validation preventing negative or out-of-bounds elements (max 20,000px).
+  - String length ceiling (max 10,000 characters per content payload) to prevent memory exhaustion.
+  - Image URL protocol whitelist restricting `imageUrl` to safe protocols (`data:image/`, `https://`, `http://`).
 - **Base64 Image Null-Safety Checks**: Null checks within `fabric.Image.fromURL` callbacks in `CanvasApp.tsx` to prevent canvas context `clearRect` errors on malformed image data.
 - **Strict Character Limits**: 50-character limit on collaborative room names (`maxLength={50}`) in `TopBar.tsx`.
 - **File Upload Type & Size Guards**: Strict `image/*` MIME type verification and `3MB` file size ceiling in `Toolbar.tsx`.
 - **StrictMode Cleanup**: Explicit unobserving of Yjs maps/text, unregistering awareness handlers, and disposing of Fabric canvas contexts on component unmounting to prevent memory leaks and dangling listeners.
-- **Input Sanitization in JSON Import**: Validation of basic object schema before applying imported JSON templates.
 
 ## 5. Recommended Production Hardening Strategies
 To prepare SyncBoard for enterprise/production multi-tenant deployment, the following additional protections should be considered:

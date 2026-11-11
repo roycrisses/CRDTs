@@ -49,8 +49,42 @@ wss.on('connection', (conn, req) => {
     }
   });
 
+  conn.on('error', (err) => {
+    console.error('[Protection] WebSocket connection error:', err?.message || err);
+  });
+
   setupWSConnection(conn, req);
 });
+
+wss.on('error', (err) => {
+  console.error('[Protection] WebSocket server error:', err?.message || err);
+});
+
+server.on('error', (err) => {
+  console.error('[Protection] HTTP server error:', err?.message || err);
+});
+
+// Graceful shutdown handling
+const handleShutdown = (signal) => {
+  console.log(`[Protection] Received ${signal}. Shutting down cleanly...`);
+  clearInterval(heartbeatInterval);
+  wss.clients.forEach((client) => {
+    try {
+      client.close(1001, 'Server shutting down');
+    } catch {
+      // Ignore errors on closing
+    }
+  });
+  wss.close(() => {
+    server.close(() => {
+      console.log('[Protection] Server shutdown complete.');
+      process.exit(0);
+    });
+  });
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 // Heartbeat ping interval to clean up stale zombie connections
 const HEARTBEAT_INTERVAL_MS = 30000;
